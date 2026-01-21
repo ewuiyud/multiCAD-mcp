@@ -19,13 +19,14 @@ logger = logging.getLogger(__name__)
 #  Insertar un bloque
 # ============================================================
 
+
 def insert_block(
     adapter,
     block_name: str,
     insertion_point: str,
     scale: float = 1.0,
     rotation: float = 0.0,
-    layer: str = "0"
+    layer: str = "0",
 ) -> Dict[str, Any]:
     """
     Inserta un bloque en el dibujo CAD.
@@ -56,7 +57,7 @@ def insert_block(
             scale_y=scale,
             scale_z=scale,
             rotation=rotation,
-            layer=layer
+            layer=layer,
         )
 
         return {
@@ -67,7 +68,7 @@ def insert_block(
             "insertion_point": insertion_point,
             "scale": scale,
             "rotation": rotation,
-            "layer": layer
+            "layer": layer,
         }
 
     except Exception as e:
@@ -78,6 +79,7 @@ def insert_block(
 # ============================================================
 #  Insertar múltiples bloques (batch)
 # ============================================================
+
 
 def insert_blocks_batch(adapter, blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -116,26 +118,30 @@ def insert_blocks_batch(adapter, blocks: List[Dict[str, Any]]) -> Dict[str, Any]
                 scale_z=b.get("scale", 1.0),
                 rotation=b.get("rotation", 0.0),
                 layer=b.get("layer", "0"),
-                _skip_refresh=True  # Optimización clave
+                _skip_refresh=True,  # Optimización clave
             )
 
-            results.append({
-                "index": i,
-                "success": True,
-                "handle": handle,
-                "block_name": b["block_name"]
-            })
+            results.append(
+                {
+                    "index": i,
+                    "success": True,
+                    "handle": handle,
+                    "block_name": b["block_name"],
+                }
+            )
 
             success_count += 1
 
         except Exception as e:
             fail_count += 1
-            results.append({
-                "index": i,
-                "success": False,
-                "block_name": b.get("block_name"),
-                "error": str(e)
-            })
+            results.append(
+                {
+                    "index": i,
+                    "success": False,
+                    "block_name": b.get("block_name"),
+                    "error": str(e),
+                }
+            )
 
     # Refrescar vista una sola vez
     adapter.refresh_view()
@@ -144,13 +150,14 @@ def insert_blocks_batch(adapter, blocks: List[Dict[str, Any]]) -> Dict[str, Any]
         "success": fail_count == 0,
         "inserted": success_count,
         "failed": fail_count,
-        "results": results
+        "results": results,
     }
 
 
 # ============================================================
 #  Listar bloques disponibles
 # ============================================================
+
 
 def list_blocks(adapter) -> Dict[str, Any]:
     """
@@ -165,11 +172,7 @@ def list_blocks(adapter) -> Dict[str, Any]:
 
     try:
         blocks = adapter.list_blocks()
-        return {
-            "success": True,
-            "count": len(blocks),
-            "blocks": blocks
-        }
+        return {"success": True, "count": len(blocks), "blocks": blocks}
     except Exception as e:
         logger.error(f"list_blocks error: {e}")
         return {"success": False, "error": str(e)}
@@ -178,6 +181,7 @@ def list_blocks(adapter) -> Dict[str, Any]:
 # ============================================================
 #  Obtener información de un bloque
 # ============================================================
+
 
 def get_block_info(adapter, block_name: str) -> Dict[str, Any]:
     """
@@ -207,6 +211,7 @@ def get_block_info(adapter, block_name: str) -> Dict[str, Any]:
 #  Obtener referencias (instancias) del bloque
 # ============================================================
 
+
 def get_block_references(adapter, block_name: str) -> Dict[str, Any]:
     """
     Lista todas las referencias de un bloque en el dibujo.
@@ -225,18 +230,16 @@ def get_block_references(adapter, block_name: str) -> Dict[str, Any]:
 
     try:
         refs = adapter.get_block_references(block_name)
-        return {
-            "success": True,
-            "count": len(refs),
-            "references": refs
-        }
+        return {"success": True, "count": len(refs), "references": refs}
     except Exception as e:
         logger.error(f"get_block_references error: {e}")
         return {"success": False, "error": str(e)}
 
+
 # ============================================================
 #  Registros de herramientas
 # ============================================================
+
 
 def register_block_tools(mcp) -> None:
     """Register block-related MCP tools."""
@@ -253,7 +256,9 @@ def register_block_tools(mcp) -> None:
     ) -> Dict[str, Any]:
         adapter = get_current_adapter()
         try:
-            return insert_block(adapter, block_name, insertion_point, scale, rotation, layer)
+            return insert_block(
+                adapter, block_name, insertion_point, scale, rotation, layer
+            )
         except InvalidParameterError:
             raise
         except Exception as e:

@@ -65,7 +65,7 @@ def register_all_tools():
 
     register_entity_tools(mcp)
     logger.debug("  ✓ Entity tools registered")
-    
+
     register_block_tools(mcp)
     logger.debug("  ✓ Block tools registered")
 

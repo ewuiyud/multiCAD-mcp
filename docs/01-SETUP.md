@@ -79,6 +79,7 @@ multiCAD-mcp/
 ```powershell
 pytest tests/ -v                    # Run tests
 mypy src/                           # Type check
+flake8 src/                         # Lint code
 black src/                          # Format code
 npx -y @modelcontextprotocol/inspector py src/server.py  # MCP Inspector
 ```
