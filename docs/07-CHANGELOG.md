@@ -60,6 +60,12 @@ Major refactoring of the adapter layer for better maintainability.
 
 ---
 
+## Unreleased
+
+### Added
+
+- Block management tools (insert, batch insert, list and audit blocks)
+
 ## [0.1.1] - 2025-11-22
 
 ### Added - Batch Operations
