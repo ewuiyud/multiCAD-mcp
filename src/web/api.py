@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from __version__ import __version__
 from adapters.adapter_manager import AdapterRegistry
 from core import get_supported_cads
 
@@ -184,7 +185,7 @@ async def get_index() -> FileResponse:
 @api_app.get("/api/health")
 async def api_health() -> dict:
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.1.3"}
+    return {"status": "ok", "version": __version__}
 
 
 @api_app.get("/api/debug/registry")

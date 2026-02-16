@@ -150,20 +150,28 @@ def _set_layer(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 def _set_color_bylayer(spec: Dict[str, Any]) -> Dict[str, Any]:
     handles_raw = spec["handles"]
-    if isinstance(handles_raw, str):
-        if handles_raw.startswith("["):
-            handles_list = json.loads(handles_raw)
+    try:
+        if isinstance(handles_raw, str):
+            if handles_raw.startswith("["):
+                handles_list = json.loads(handles_raw)
+            else:
+                handles_list = parse_handles(handles_raw)
         else:
-            handles_list = parse_handles(handles_raw)
-    else:
-        handles_list = handles_raw
+            handles_list = handles_raw
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.warning(f"Failed to parse handles in set_color_bylayer: {e}")
+        return {"success": False, "error": f"Invalid handles format: {e}"}
 
-    result = get_current_adapter().set_entities_color_bylayer(handles_list)
-    return {
-        "success": result.get("changed", 0) > 0,
-        "count": result.get("total", len(handles_list)),
-        "detail": f"Set {result.get('changed', 0)} entities to ByLayer color",
-    }
+    try:
+        result = get_current_adapter().set_entities_color_bylayer(handles_list)
+        return {
+            "success": result.get("changed", 0) > 0,
+            "count": result.get("total", len(handles_list)),
+            "detail": f"Set {result.get('changed', 0)} entities to ByLayer color",
+        }
+    except Exception as e:
+        logger.error(f"set_color_bylayer failed: {e}")
+        return {"success": False, "error": str(e)}
 
 
 def _copy(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -185,8 +193,17 @@ def _paste(spec: Dict[str, Any]) -> Dict[str, Any]:
     parts = str(base_point).split(",")
     if len(parts) < 2:
         return {"success": False, "error": "base_point must be 'x,y' format"}
-    bx, by = float(parts[0].strip()), float(parts[1].strip())
-    get_current_adapter().paste_entities(bx, by)
+    try:
+        bx, by = float(parts[0].strip()), float(parts[1].strip())
+    except (ValueError, IndexError) as e:
+        return {"success": False, "error": f"Invalid base_point coordinates: {e}"}
+
+    try:
+        get_current_adapter().paste_entities(bx, by)
+        return {"success": True, "detail": f"Pasted entities at ({bx}, {by})"}
+    except Exception as e:
+        logger.error(f"Paste failed: {e}")
+        return {"success": False, "error": str(e)}
 def _delete(spec: Dict[str, Any]) -> Dict[str, Any]:
     handle_list = parse_handles(spec["handles"])
     adapter = get_current_adapter()
