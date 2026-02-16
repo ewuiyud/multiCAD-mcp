@@ -84,10 +84,15 @@ class DrawingMixin:
         end_array = self._to_variant_array(end_pt)
 
         line = document.ModelSpace.AddLine(start_array, end_array)
-        
+
         return self._finalize_entity(
-            line, layer, color, lineweight, "line", _skip_refresh,
-            f"Drew line from {start} to {end}"
+            line,
+            layer,
+            color,
+            lineweight,
+            "line",
+            _skip_refresh,
+            f"Drew line from {start} to {end}",
         )
 
     def draw_circle(
@@ -113,10 +118,15 @@ class DrawingMixin:
         center_array = self._to_variant_array(center_pt)
 
         circle = document.ModelSpace.AddCircle(center_array, radius)
-        
+
         return self._finalize_entity(
-            circle, layer, color, lineweight, "circle", _skip_refresh,
-            f"Drew circle at {center} with radius {radius}"
+            circle,
+            layer,
+            color,
+            lineweight,
+            "circle",
+            _skip_refresh,
+            f"Drew circle at {center} with radius {radius}",
         )
 
     def draw_arc(
@@ -146,10 +156,15 @@ class DrawingMixin:
             self._to_radians(start_angle),
             self._to_radians(end_angle),
         )
-        
+
         return self._finalize_entity(
-            arc, layer, color, lineweight, "arc", _skip_refresh,
-            f"Drew arc at {center} from {start_angle}° to {end_angle}°"
+            arc,
+            layer,
+            color,
+            lineweight,
+            "arc",
+            _skip_refresh,
+            f"Drew arc at {center} from {start_angle}° to {end_angle}°",
         )
 
     def draw_rectangle(
@@ -218,8 +233,13 @@ class DrawingMixin:
             polyline.Closed = True
 
         return self._finalize_entity(
-            polyline, layer, color, lineweight, "polyline", _skip_refresh,
-            f"Drew polyline with {len(points)} points"
+            polyline,
+            layer,
+            color,
+            lineweight,
+            "polyline",
+            _skip_refresh,
+            f"Drew polyline with {len(points)} points",
         )
 
     def draw_ellipse(
@@ -244,10 +264,15 @@ class DrawingMixin:
         ellipse = document.ModelSpace.AddEllipse(
             center_array, major_array, minor_axis_ratio
         )
-        
+
         return self._finalize_entity(
-            ellipse, layer, color, lineweight, "ellipse", False, # Always refresh for ellipse in original code, but cleaner to pass _skip_refresh if we update signature. original didn't have _skip_refresh
-            f"Drew ellipse at {center}"
+            ellipse,
+            layer,
+            color,
+            lineweight,
+            "ellipse",
+            False,  # Always refresh for ellipse in original code, but cleaner to pass _skip_refresh if we update signature. original didn't have _skip_refresh
+            f"Drew ellipse at {center}",
         )
 
     def draw_text(
@@ -274,8 +299,13 @@ class DrawingMixin:
         text_obj.Rotation = self._to_radians(rotation)
 
         return self._finalize_entity(
-            text_obj, layer, color, 0, "text", _skip_refresh,
-            f"Added text '{text}' at {position}"
+            text_obj,
+            layer,
+            color,
+            0,
+            "text",
+            _skip_refresh,
+            f"Added text '{text}' at {position}",
         )
 
     def draw_hatch(
@@ -306,8 +336,13 @@ class DrawingMixin:
         hatch.Evaluate()
 
         return self._finalize_entity(
-            hatch, layer, color, 0, "hatch", False, # hatch always refreshed in original
-            f"Created hatch with pattern {pattern}"
+            hatch,
+            layer,
+            color,
+            0,
+            "hatch",
+            False,  # hatch always refreshed in original
+            f"Created hatch with pattern {pattern}",
         )
 
     def add_dimension(
@@ -377,8 +412,13 @@ class DrawingMixin:
             dim.TextOverride = text
 
         return self._finalize_entity(
-            dim, layer, color, 0, "dimension", _skip_refresh,
-            f"Added dimension from {start} to {end} with offset {offset}"
+            dim,
+            layer,
+            color,
+            0,
+            "dimension",
+            _skip_refresh,
+            f"Added dimension from {start} to {end} with offset {offset}",
         )
 
     def draw_spline(
@@ -413,8 +453,13 @@ class DrawingMixin:
             spline.Closed = True
 
         return self._finalize_entity(
-            spline, layer, color, lineweight, "spline", _skip_refresh,
-            f"Drew spline with {len(points)} points (degree={degree}, closed={closed})"
+            spline,
+            layer,
+            color,
+            lineweight,
+            "spline",
+            _skip_refresh,
+            f"Drew spline with {len(points)} points (degree={degree}, closed={closed})",
         )
 
     def draw_leader(
@@ -497,12 +542,16 @@ class DrawingMixin:
                           Order: [ArrowHead, ..., TextPosition]
             _skip_refresh: Internal flag to skip view refresh (used for batch operations)
         """
-        logger.info(f"draw_mleader called with {len(leader_groups)} groups: {leader_groups}")
+        logger.info(
+            f"draw_mleader called with {len(leader_groups)} groups: {leader_groups}"
+        )
 
         document = self._get_document("draw_mleader")
 
         if not leader_groups:
-            raise InvalidParameterError("leader_groups", leader_groups, "at least 1 group")
+            raise InvalidParameterError(
+                "leader_groups", leader_groups, "at least 1 group"
+            )
 
         for i, group in enumerate(leader_groups):
             if len(group) < 2:
@@ -520,15 +569,17 @@ class DrawingMixin:
             # We use just the base point for initial creation, or the first group's points?
             # AddMLeader documentation says: Adds an MLeader object to the drawing.
             # RetVal = object.AddMLeader(pointsArray, leaderIndex)
-            
-            # Use the first group's points for the initial creation if possible, 
-            # but AddMLeader expects a points array. 
+
+            # Use the first group's points for the initial creation if possible,
+            # but AddMLeader expects a points array.
             # If we pass just base_array, it might fail if it expects more points.
             # However, typical usage is creating with the full point list of the first leader.
             first_group = leader_groups[0]
-            normalized_first_group = [CADInterface.normalize_coordinate(p) for p in first_group]
+            normalized_first_group = [
+                CADInterface.normalize_coordinate(p) for p in first_group
+            ]
             variant_first_group = self._points_to_variant_array(normalized_first_group)
-            
+
             # Create the MLeader
             # index 0 is usually the leader index to add to
             # Try creating MLeader with index 0
@@ -536,8 +587,8 @@ class DrawingMixin:
             try:
                 result = document.ModelSpace.AddMLeader(variant_first_group, 0)
             except Exception as e:
-                 logger.debug(f"AddMLeader(pts, 0) failed, trying AddMLeader(pts): {e}")
-                 result = document.ModelSpace.AddMLeader(variant_first_group)
+                logger.debug(f"AddMLeader(pts, 0) failed, trying AddMLeader(pts): {e}")
+                result = document.ModelSpace.AddMLeader(variant_first_group)
 
             # Handle tuple return
             mleader = result[0] if isinstance(result, tuple) else result
@@ -553,11 +604,11 @@ class DrawingMixin:
             if text:
                 # ContentType: 2 = MText
                 set_prop(mleader, "ContentType", 2)
-                
+
                 # Apply Arial Font formatting using MText codes
                 formatted_text = r"{\fArial|b0|i0|c0|p34;" + text + "}"
                 set_prop(mleader, "TextString", formatted_text)
-                
+
                 # Attempt to set text height if possible
                 try:
                     # Some MLeaders expose TextHeight directly
@@ -569,7 +620,7 @@ class DrawingMixin:
                     except:
                         pass
             else:
-                set_prop(mleader, "ContentType", 0) # None
+                set_prop(mleader, "ContentType", 0)  # None
 
             # Set Arrow Style
             try:
@@ -580,38 +631,44 @@ class DrawingMixin:
             # Force update to ensure geometry is calculated
             try:
                 mleader.Update()
-            except: pass
+            except:
+                pass
 
             # Handle additional leader groups using _MLEADEREDIT command
             if len(leader_groups) > 1:
                 try:
                     # Force Regen to ensure handle is recognized
                     try:
-                        self.document.Regen(1) # acAllViewports = 1
-                    except: pass
+                        self.document.Regen(1)  # acAllViewports = 1
+                    except:
+                        pass
 
                     # Construct the command string
                     # Syntax: _AIMLEADEREDITADD (handent "HANDLE") PT1 PT2 ... \x1B
                     cmd_parts = [f'_AIMLEADEREDITADD (handent "{mleader.Handle}")']
-                    
+
                     for group in leader_groups[1:]:
-                        normalized_group = [CADInterface.normalize_coordinate(p) for p in group]
-                        
+                        normalized_group = [
+                            CADInterface.normalize_coordinate(p) for p in group
+                        ]
+
                         # Arrow point is the FIRST point in the group (from input)
                         # We need to format it as "X,Y,Z"
-                        arrow_pt = normalized_group[0] 
+                        arrow_pt = normalized_group[0]
                         pt_str = f"{arrow_pt[0]},{arrow_pt[1]},{arrow_pt[2]}"
-                        
+
                         cmd_parts.append(pt_str)
-                    
+
                     # Terminate command with ESC
-                    cmd_parts.append('\x1B')
-                    
+                    cmd_parts.append("\x1b")
+
                     full_cmd = " ".join(cmd_parts)
-                    logger.info(f"Adding {len(leader_groups)-1} extra arrows via command: {full_cmd}")
-                    
+                    logger.info(
+                        f"Adding {len(leader_groups)-1} extra arrows via command: {full_cmd}"
+                    )
+
                     self.document.SendCommand(full_cmd)
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to add extra arrows via command: {e}")
 
@@ -630,15 +687,19 @@ class DrawingMixin:
             # Force update
             try:
                 mleader.Update()
-            except: pass
+            except:
+                pass
 
             return self._finalize_entity(
-                mleader, layer, color, 0, "mleader", _skip_refresh,
-                f"Drew multi-leader with {len(leader_groups)} lines (arrow_style={arrow_style}, text={text})"
+                mleader,
+                layer,
+                color,
+                0,
+                "mleader",
+                _skip_refresh,
+                f"Drew multi-leader with {len(leader_groups)} lines (arrow_style={arrow_style}, text={text})",
             )
 
         except Exception as e:
             logger.error(f"Failed to create MLeader: {e}")
             raise CADOperationError("draw_mleader", f"Failed to create MLeader: {e}")
-
-

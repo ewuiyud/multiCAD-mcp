@@ -204,6 +204,8 @@ def _paste(spec: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Paste failed: {e}")
         return {"success": False, "error": str(e)}
+
+
 def _delete(spec: Dict[str, Any]) -> Dict[str, Any]:
     handle_list = parse_handles(spec["handles"])
     adapter = get_current_adapter()

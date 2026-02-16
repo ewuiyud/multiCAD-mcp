@@ -467,7 +467,7 @@ class UtilityMixin:
         except ValueError:
             raise CADOperationError(
                 "resolve_export_path",
-                f"Path traversal detected: {resolved_path} is outside {output_dir}"
+                f"Path traversal detected: {resolved_path} is outside {output_dir}",
             )
 
     def _handle_operation_error(
@@ -516,7 +516,9 @@ class UtilityMixin:
         try:
             document = self._get_document(operation_name)
         except Exception as e:
-            return self._handle_operation_error(operation_name, e, default_return=(0, 0))
+            return self._handle_operation_error(
+                operation_name, e, default_return=(0, 0)
+            )
 
         success_count = 0
         total_count = 0

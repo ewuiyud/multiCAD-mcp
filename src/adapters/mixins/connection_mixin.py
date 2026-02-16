@@ -47,7 +47,9 @@ class ConnectionMixin:
             try:
                 pythoncom.CoInitialize()
             except Exception as e:
-                logger.debug(f"CoInitialize: {e} (may already be initialized for thread)")
+                logger.debug(
+                    f"CoInitialize: {e} (may already be initialized for thread)"
+                )
 
             # Try to get existing instance
             try:

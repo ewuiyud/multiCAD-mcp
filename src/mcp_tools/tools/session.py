@@ -14,7 +14,6 @@ import webbrowser
 from typing import Optional, Dict, Any, Callable, List, Tuple
 
 
-
 from core import get_supported_cads, CADConnectionError
 from adapters import AutoCADAdapter
 from adapters.adapter_manager import get_cad_instances, get_adapter, set_active_cad_type
@@ -26,6 +25,7 @@ def _refresh_cache_safe():
     """Refresh dashboard cache, ignoring errors if dashboard not loaded."""
     try:
         from web.api import refresh_dashboard_cache
+
         refresh_dashboard_cache()
     except Exception as e:
         logger.debug(f"Dashboard cache refresh skipped: {e}")
@@ -131,7 +131,7 @@ def _screenshot(spec: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "detail": f"Screenshot saved to {result['path']}",
             "path": result["path"],
-            "data": result["data"]
+            "data": result["data"],
         }
     except Exception as e:
         return {"success": False, "detail": str(e)}
@@ -146,7 +146,7 @@ def _export_view(spec: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "detail": f"View exported to {result['path']}",
             "path": result["path"],
-            "data": result["data"]
+            "data": result["data"],
         }
     except Exception as e:
         return {"success": False, "detail": str(e)}

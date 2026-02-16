@@ -491,7 +491,9 @@ class DrawLeaderRequest(BaseModel):
         min_length=2, description="At least 2 points required for a leader"
     )
     text: Optional[str] = Field(default=None, description="Optional annotation text")
-    text_height: float = Field(gt=0, default=2.5, description="Height of annotation text")
+    text_height: float = Field(
+        gt=0, default=2.5, description="Height of annotation text"
+    )
     layer: str = "0"
     color: Union[str, int] = "white"
     leader_type: str = Field(
@@ -513,7 +515,12 @@ class DrawLeaderRequest(BaseModel):
         LayerValidator(layer=self.layer)
 
         # Validate leader_type
-        valid_types = ["line_with_arrow", "line_no_arrow", "spline_with_arrow", "spline_no_arrow"]
+        valid_types = [
+            "line_with_arrow",
+            "line_no_arrow",
+            "spline_with_arrow",
+            "spline_no_arrow",
+        ]
         if self.leader_type.lower() not in valid_types:
             raise ValueError(
                 f"Invalid leader_type '{self.leader_type}'. Must be one of: {valid_types}"
@@ -529,10 +536,13 @@ class DrawMLeaderRequest(BaseModel):
         description="Base point for the multi-leader annotation"
     )
     leader_groups: List[List[Tuple[float, float] | Tuple[float, float, float]]] = Field(
-        min_length=1, description="List of leader line point groups (minimum 1 line, each with 2+ points)"
+        min_length=1,
+        description="List of leader line point groups (minimum 1 line, each with 2+ points)",
     )
     text: Optional[str] = Field(default=None, description="Optional annotation text")
-    text_height: float = Field(gt=0, default=2.5, description="Height of annotation text")
+    text_height: float = Field(
+        gt=0, default=2.5, description="Height of annotation text"
+    )
     layer: str = "0"
     color: Union[str, int] = "white"
     arrow_style: str = Field(

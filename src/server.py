@@ -109,7 +109,12 @@ if __name__ == "__main__":
             # Start background refresher thread
             def refresher_loop():
                 """Wait for refresh events or timeout to update the dashboard cache."""
-                from web.api import refresh_event, refresh_done_event, refresh_dashboard_cache
+                from web.api import (
+                    refresh_event,
+                    refresh_done_event,
+                    refresh_dashboard_cache,
+                )
+
                 logger.debug("Refresher thread started")
                 while True:
                     # Wait for manual refresh or 30s auto-refresh
@@ -117,7 +122,7 @@ if __name__ == "__main__":
                     if event_set:
                         logger.info("Manual dashboard refresh requested via API")
                         refresh_event.clear()
-                    
+
                     try:
                         refresh_dashboard_cache()
                     except Exception as e:

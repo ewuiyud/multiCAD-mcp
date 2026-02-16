@@ -22,11 +22,11 @@ SHORTHAND FORMAT (one per line):
     - First point is where the arrow starts. Last point is where the text attaches.
     - Use '~~' to separate multiple arrow groups.
     - Each group must have at least 2 points.
-    
+
     Examples:
-        Single arrow: leader|10,10;50,50|Label 
+        Single arrow: leader|10,10;50,50|Label
                       -> Arrow at 10,10, Text at 50,50
-        
+
         Multi arrow:  leader|10,10;50,50~~10,90;50,50|Label
                       -> Arrow 1 at 10,10, Arrow 2 at 10,90
                       -> Both converge to Text at 50,50
@@ -232,8 +232,8 @@ def _draw_leader_unified(spec: Dict[str, Any]) -> str:
         base_pt = parse_coordinate(spec["base_point"])
         groups_str = spec["leader_groups"]
         if isinstance(groups_str, list):
-             # Already a list of points (from JSON)
-             leader_groups = groups_str
+            # Already a list of points (from JSON)
+            leader_groups = groups_str
         else:
             # String format: "0,0;10,10~~..."
             for group_str in groups_str.split("~~"):
@@ -250,12 +250,12 @@ def _draw_leader_unified(spec: Dict[str, Any]) -> str:
         points_or_groups = spec["points"]
 
         if "~~" in points_or_groups:
-             # Multi-arrow shorthand
+            # Multi-arrow shorthand
             groups_str = points_or_groups
             # For shorthand, we don't need a separate base_point,
             # MLeader will use the first point of the first group usually.
             # But the adapter might need one. We'll use 0,0 provided, or infer it.
-            base_pt_str = spec.get("base_point", "0,0") 
+            base_pt_str = spec.get("base_point", "0,0")
             base_pt = parse_coordinate(base_pt_str)
 
             for group_str in groups_str.split("~~"):
@@ -265,11 +265,15 @@ def _draw_leader_unified(spec: Dict[str, Any]) -> str:
                     # Shorthand might have converted ; to | already
                     clean_str = group_str.replace(";", "|")
                     group_points = [
-                        parse_coordinate(p.strip()) for p in clean_str.split("|") if p.strip()
+                        parse_coordinate(p.strip())
+                        for p in clean_str.split("|")
+                        if p.strip()
                     ]
-                    
+
                     if len(group_points) < 2:
-                        logger.warning(f"Leader group parsed with < 2 points: {group_str} -> {group_points}")
+                        logger.warning(
+                            f"Leader group parsed with < 2 points: {group_str} -> {group_points}"
+                        )
 
                     if group_points:
                         leader_groups.append(group_points)
@@ -282,12 +286,12 @@ def _draw_leader_unified(spec: Dict[str, Any]) -> str:
             ]
             if group_points:
                 leader_groups.append(group_points)
-            
+
             # Use the first point as base point if not specified
             if group_points:
                 base_pt = group_points[0]
             else:
-                 base_pt = parse_coordinate(spec.get("base_point", "0,0"))
+                base_pt = parse_coordinate(spec.get("base_point", "0,0"))
 
     if not leader_groups:
         raise ValueError("Leader must have at least one group of points")
@@ -298,13 +302,17 @@ def _draw_leader_unified(spec: Dict[str, Any]) -> str:
     elif base_pt is None:
         base_pt = (0.0, 0.0, 0.0)
 
-    logger.info(f"Unified Leader Groups Parsed: {len(leader_groups)} groups. Spec: {leader_groups}")
+    logger.info(
+        f"Unified Leader Groups Parsed: {len(leader_groups)} groups. Spec: {leader_groups}"
+    )
 
     validated = DrawMLeaderRequest(
         base_point=base_pt,
         leader_groups=leader_groups,
         text=spec.get("text"),
-        text_height=spec.get("text_height", spec.get("height", 2.5)), # Support 'height' alias
+        text_height=spec.get(
+            "text_height", spec.get("height", 2.5)
+        ),  # Support 'height' alias
         color=spec.get("color", "white"),
         layer=spec.get("layer", "0"),
         arrow_style=spec.get("arrow_style", "_ARROW"),
@@ -333,7 +341,7 @@ ENTITY_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
     "spline": (_draw_spline, ["points"]),
     "dimension": (_add_dimension, ["start", "end"]),
     # Both leader types now use the unified handler
-    "leader": (_draw_leader_unified, ["points"]), 
+    "leader": (_draw_leader_unified, ["points"]),
     "mleader": (_draw_leader_unified, ["leader_groups"]),
 }
 
@@ -389,9 +397,9 @@ def register_drawing_tools(mcp):
                 - Always creates an MLeader entity.
                 - Format: `leader|group1~~group2|text...`
                 - Each group is a list of points: `arrow_start;...;text_attach_point`
-                - To create multiple arrows pointing to the SAME text, ensure the LAST point 
+                - To create multiple arrows pointing to the SAME text, ensure the LAST point
                   of every group is the SAME (the text position).
-                
+
                 Example of Multi-Arrow Leader (Converging):
                     `leader|10,10;50,50~~10,90;50,50|Label`
                     -> Arrow 1 starts at 10,10
