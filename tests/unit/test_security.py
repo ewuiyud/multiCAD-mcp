@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch, Mock
 from src.adapters import AutoCADAdapter
-from src.core import CADOperationError
+from src.core import CADOperationError, InvalidParameterError
 from src.adapters.adapter_manager import AdapterRegistry
 
 

@@ -27,6 +27,7 @@ else:
 from core import (
     CADOperationError,
     CADConnectionError,
+    InvalidParameterError,
     Point,
     ConfigManager,
 )
@@ -496,6 +497,46 @@ class UtilityMixin:
         if isinstance(error, (CADConnectionError, CADOperationError)):
             raise
         return default_return
+
+    def _validate_drawing_params(
+        self,
+        operation: str,
+        radius: Optional[float] = None,
+        angle: Optional[float] = None,
+        points: Optional[List] = None,
+    ) -> None:
+        """Validate parameters for drawing operations.
+
+        Performs sanity checks on common drawing parameters to catch invalid inputs early.
+
+        Args:
+            operation: Name of the operation being validated
+            radius: Circle/arc radius to validate (must be > 0)
+            angle: Rotation/arc angle in degrees
+            points: List of coordinate points
+
+        Raises:
+            InvalidParameterError: If any parameter is invalid
+        """
+        if radius is not None:
+            if radius <= 0:
+                raise InvalidParameterError(operation, "radius", "positive number")
+            if radius > 1000000:
+                logger.warning(f"{operation}: Very large radius {radius}")
+
+        if angle is not None:
+            if not -360 <= angle <= 360:
+                logger.warning(f"{operation}: Angle {angle} outside normal range [-360, 360]")
+
+        if points is not None:
+            if not isinstance(points, (list, tuple)):
+                raise InvalidParameterError(
+                    operation, "points", "list of coordinate points"
+                )
+            if len(points) < 2:
+                raise InvalidParameterError(
+                    operation, "points", "at least 2 coordinate points"
+                )
 
     def _iterate_entities_safe(
         self,

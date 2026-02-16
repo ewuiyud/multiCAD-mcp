@@ -57,6 +57,49 @@ class ViewMixin:
             return sanitized
         return user_input
 
+    def _find_cad_window(self) -> int:
+        """Find CAD application window with strict matching.
+
+        Uses both window title and class name matching to avoid VBA and other windows.
+        Returns the handle of the main CAD window.
+
+        Returns:
+            int: Window handle (HWND) of the CAD application, 0 if not found
+
+        Raises:
+            Exception: If CAD window cannot be found
+        """
+        from mcp_tools.constants import CAD_WINDOW_SEARCH_TERMS, AUTOCAD_WINDOW_CLASSES
+
+        search_term = CAD_WINDOW_SEARCH_TERMS.get(self.cad_type, "")
+        hwnd = 0
+
+        def enum_windows_callback(h, result):
+            nonlocal hwnd
+            if hwnd or not win32gui.IsWindowVisible(h):
+                return
+
+            title = win32gui.GetWindowText(h)
+            class_name = win32gui.GetClassName(h)
+
+            # Matching: title contains search term AND class is a CAD window class
+            title_match = search_term.lower() in title.lower()
+            class_match = any(p in class_name for p in AUTOCAD_WINDOW_CLASSES)
+
+            # Exclude VBA editor and other non-main windows
+            if title_match and class_match and "VBA" not in title:
+                hwnd = h
+                logger.debug(
+                    f"Found CAD window: title='{title}', class='{class_name}', hwnd={h}"
+                )
+
+        win32gui.EnumWindows(enum_windows_callback, None)
+
+        if not hwnd:
+            raise Exception(f"Could not find window for {self.cad_type}")
+
+        return hwnd
+
     def get_screenshot(self) -> Dict[str, str]:
         """
         Capture a screenshot of the CAD application window.
@@ -70,40 +113,8 @@ class ViewMixin:
         try:
             self._validate_connection()
 
-            # Find the CAD window
-            # Strategy: Search for main window based on CAD type
-            search_term = ""
-            if self.cad_type == "autocad":
-                search_term = "Autodesk AutoCAD"
-            elif self.cad_type == "zwcad":
-                search_term = "ZWCAD"
-            elif self.cad_type == "gcad":
-                search_term = "GstarCAD"
-            elif self.cad_type == "bricscad":
-                search_term = "BricsCAD"
-
-            hwnd = 0
-
-            def enum_windows_callback(h, result):
-                nonlocal hwnd
-                if hwnd:
-                    return  # Already found
-
-                if win32gui.IsWindowVisible(h):
-                    title = win32gui.GetWindowText(h)
-                    # Simple case-insensitive containment check
-                    if search_term.lower() in title.lower():
-                        # Avoid "Application" windows (like VBA) if possible,
-                        # usually the main window has the drawing name or strict branding
-                        hwnd = h
-
-            win32gui.EnumWindows(enum_windows_callback, None)
-
-            if not hwnd:
-                # Fallback: Try to get HWND from the COM application object if available
-                # AutoCAD Application object has 'HWND' property (sometimes hidden or different name)
-                # But typically EnumWindows is more reliable if we know the title pattern.
-                raise Exception(f"Could not find window for {self.cad_type}")
+            # Find the CAD window using strict matching
+            hwnd = self._find_cad_window()
 
             # Bring to front (optional, but good for clean screenshot)
             # Handle minimized state
@@ -169,31 +180,9 @@ class ViewMixin:
 
             logger.debug(f"Exporting view to {filepath_cad}")
 
-            # Find the CAD window for focusing
-            search_term = ""
-            if self.cad_type == "autocad":
-                search_term = "Autodesk AutoCAD"
-            elif self.cad_type == "zwcad":
-                search_term = "ZWCAD"
-            elif self.cad_type == "gcad":
-                search_term = "GstarCAD"
-            elif self.cad_type == "bricscad":
-                search_term = "BricsCAD"
-
-            hwnd = 0
-
-            def enum_windows_callback(h, result):
-                nonlocal hwnd
-                if hwnd:
-                    return
-                if win32gui.IsWindowVisible(h):
-                    title = win32gui.GetWindowText(h)
-                    if search_term.lower() in title.lower():
-                        hwnd = h
-
-            win32gui.EnumWindows(enum_windows_callback, None)
-
-            if hwnd:
+            # Find the CAD window for focusing (with error handling for headless mode)
+            try:
+                hwnd = self._find_cad_window()
                 try:
                     if win32gui.IsIconic(hwnd):
                         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
@@ -201,6 +190,8 @@ class ViewMixin:
                     time.sleep(0.5)
                 except Exception as e:
                     logger.warning(f"Could not focus window for export: {e}")
+            except Exception as e:
+                logger.debug(f"Could not find CAD window for focusing: {e}")
 
             # Use ESC ESC to clear any pending commands
             document.SendCommand("\x1b\x1b")
