@@ -113,7 +113,7 @@ Edit `src/config.json` to customize:
   },
   "output": {
     "directory": "~/Documents/multiCAD Exports"
-  },
+  }
 }
 ```
 

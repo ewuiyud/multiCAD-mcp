@@ -8,7 +8,7 @@ AI assistant guidance for working with the multiCAD-mcp codebase.
 
 **Stack**: Python 3.10+ | FastMCP 2.0 | pywin32 | Windows-only
 
-**Version**: 0.1.3 (in `src/__version__.py`)
+**Version**: 0.2.0 (in `src/__version__.py`)
 
 ---
 
@@ -23,7 +23,7 @@ py -m pip install --upgrade pywin32
 py src/server.py
 
 # Test
-pytest tests/ -v                      # 62 tests
+pytest tests/ -v                      # 171 tests
 npx -y @modelcontextprotocol/inspector py src/server.py
 
 # Quality
@@ -216,4 +216,4 @@ git commit -m "fix(adapter): description"
 
 ---
 
-**Version**: 0.1.3 | **Commands**: 54 | **Unified Tools**: 7
+**Version**: 0.2.0 | **Commands**: 54 | **Unified Tools**: 7 | **Tests**: 171
