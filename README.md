@@ -2,6 +2,13 @@
 
 Control your CAD applications with your AI assistant through the Model Context Protocol (MCP).
 
+[![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue?logo=readthedocs)](https://AnCode666.github.io/multiCAD-mcp/)
+[![License](https://img.shields.io/github/license/AnCode666/multiCAD-mcp)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-FastMCP%202.0-green)](https://github.com/jlowin/fastmcp)
+
+**Documentation**: https://AnCode666.github.io/multiCAD-mcp/
+
 ## What is multiCAD-mcp?
 
 multiCAD-mcp is an MCP server that lets you control your CAD software using AI assistants like Claude for desktop or Cursor. Whether you're drawing shapes, managing layers, automating repetitive tasks, o doing complex ones, you can do it all through text-based instructions.
