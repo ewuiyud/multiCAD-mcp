@@ -6,11 +6,9 @@ Handles data extraction and Excel export operations.
 
 import logging
 import math
-from pathlib import Path
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from contextlib import contextmanager
 
-from core import get_config
 from mcp_tools.constants import COLOR_MAP
 
 logger = logging.getLogger(__name__)
@@ -234,10 +232,6 @@ class ExportMixin:
         """
         import time
 
-        try:
-            from adapters.mixins.utility_mixin import SelectionSetManager
-        except ImportError:
-            pass
 
         try:
             self._validate_connection()
@@ -264,7 +258,6 @@ class ExportMixin:
             # Helper to convert to variant
             def to_variant_array(types, values):
                 import win32com.client
-                import pythoncom
 
                 return win32com.client.VARIANT(types, values)
 
@@ -302,7 +295,7 @@ class ExportMixin:
         """Inline context manager for selection sets, to avoid circular imports."""
         try:
             document.SelectionSets.Item(name).Delete()
-        except:
+        except Exception:
             pass
 
         ss = document.SelectionSets.Add(name)
@@ -311,7 +304,7 @@ class ExportMixin:
         finally:
             try:
                 ss.Delete()
-            except:
+            except Exception:
                 pass
 
     def _extract_single_entity_data(
@@ -668,7 +661,6 @@ class ExportMixin:
 
             # Pre-build reverse color map for faster lookups
             color_map_reverse = {v: k for k, v in COLOR_MAP.items()}
-            import math
             import itertools
 
             # Optimized iteration with reduced COM calls
@@ -803,11 +795,9 @@ class ExportMixin:
         try:
             from pathlib import Path
             from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment
-            from openpyxl.utils import get_column_letter
+            from openpyxl.styles import Font, PatternFill
 
             perf_start_setup = time.perf_counter()
-            config = get_config()
 
             # Resolve final path using centralized utility
             if not filepath or filepath == "drawing_data.xlsx":

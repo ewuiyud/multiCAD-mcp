@@ -439,7 +439,7 @@ class BlockMixin:
             def _temp_ss(doc, name):
                 try:
                     doc.SelectionSets.Item(name).Delete()
-                except:
+                except Exception:
                     pass
                 ss = doc.SelectionSets.Add(name)
                 try:
@@ -447,7 +447,7 @@ class BlockMixin:
                 finally:
                     try:
                         ss.Delete()
-                    except:
+                    except Exception:
                         pass
 
             def to_variant_array(types, values):

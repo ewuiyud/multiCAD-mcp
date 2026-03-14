@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `manage_session` (11 actions), `draw_entities` (10 types), `manage_blocks` (6 actions), `manage_layers` (9 actions), `manage_files` (5 actions), `manage_entities` (10 actions), `export_data` (4 combinations).
 - **Auto-named exports**: Excel export defaults to `[drawing_name]_data.xlsx` instead of `drawing_data.xlsx`.
 - **Excel improvements**: autofilter enabled on all sheets (Entities, Layers, Blocks); `limit=0` ensures full export.
-- **Dashboard refactor**: removed background refresher thread; export and refresh run directly on MCP thread; centralized configuration in `config.json` (port 6666).
+- **Dashboard refactor**: removed background refresher thread; export and refresh run directly on MCP thread; centralized configuration in `config.json` (port 8888).
 - **Test suite**: expanded from 62 to 171 tests.
 
 ### Performance

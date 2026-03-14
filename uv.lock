@@ -1292,6 +1292,11 @@ docs = [
     { name = "mkdocstrings", extra = ["python"] },
 ]
 
+[package.dev-dependencies]
+docs = [
+    { name = "backrefs" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.100.0" },
@@ -1314,6 +1319,9 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.20.0" },
 ]
 provides-extras = ["dev", "docs"]
+
+[package.metadata.requires-dev]
+docs = [{ name = "backrefs", specifier = ">=6.2" }]
 
 [[package]]
 name = "mypy"

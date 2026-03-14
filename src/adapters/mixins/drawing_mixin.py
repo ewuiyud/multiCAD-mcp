@@ -671,7 +671,7 @@ class DrawingMixin:
 
         # Normalize base point to 3D
         base_pt = CADInterface.normalize_coordinate(base_point)
-        base_array = self._to_variant_array(base_pt)
+        _base_array = self._to_variant_array(base_pt)
 
         try:
             # Create MLeader with base point
@@ -723,11 +723,11 @@ class DrawingMixin:
                 try:
                     # Some MLeaders expose TextHeight directly
                     mleader.TextHeight = text_height
-                except:
+                except Exception:
                     # Otherwise try via MText attribute if exposed
                     try:
                         mleader.MText.Height = text_height
-                    except:
+                    except Exception:
                         pass
             else:
                 set_prop(mleader, "ContentType", 0)  # None
@@ -741,7 +741,7 @@ class DrawingMixin:
             # Force update to ensure geometry is calculated
             try:
                 mleader.Update()
-            except:
+            except Exception:
                 pass
 
             # Handle additional leader groups using _MLEADEREDIT command
@@ -751,7 +751,7 @@ class DrawingMixin:
                     try:
                         doc = self._get_document("draw_mleader")
                         doc.Regen(1)  # acAllViewports = 1
-                    except:
+                    except Exception:
                         pass
 
                     # Construct the command string
@@ -789,7 +789,7 @@ class DrawingMixin:
                 try:
                     # Try direct assignment first (ZWCAD simple property)
                     mleader.Color = color
-                except:
+                except Exception:
                     try:
                         # Try via ColorIndex property (AutoCAD/Complex property)
                         mleader.Color.ColorIndex = color
@@ -799,7 +799,7 @@ class DrawingMixin:
             # Force update
             try:
                 mleader.Update()
-            except:
+            except Exception:
                 pass
 
             return self._finalize_entity(

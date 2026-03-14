@@ -179,7 +179,7 @@ class LayerMixin:
                 def _temp_ss(doc, name):
                     try:
                         doc.SelectionSets.Item(name).Delete()
-                    except:
+                    except Exception:
                         pass
                     ss = doc.SelectionSets.Add(name)
                     try:
@@ -187,7 +187,7 @@ class LayerMixin:
                     finally:
                         try:
                             ss.Delete()
-                        except:
+                        except Exception:
                             pass
 
                 def to_variant_array(types, values):
@@ -472,8 +472,6 @@ class LayerMixin:
             self._validate_connection()
             document = self._get_document("set_entities_color_bylayer")
             app = self._get_application("set_entities_color_bylayer")
-            model_space = document.ModelSpace
-
             results = []
             changed_count = 0
             failed_count = 0

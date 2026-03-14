@@ -11,10 +11,7 @@ import time
 import re
 import win32gui
 import win32con
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
-from core.config import ConfigManager
-from core.exceptions import CADOperationError
+from typing import TYPE_CHECKING, Dict
 from PIL import ImageGrab
 
 logger = logging.getLogger(__name__)

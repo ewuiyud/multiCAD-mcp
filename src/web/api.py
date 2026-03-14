@@ -247,7 +247,7 @@ def refresh_dashboard_cache():
         # 4. Get exact block insertion counts VERY fast
         try:
             insert_counts = adapter.get_block_counts()
-        except:
+        except Exception:
             insert_counts = {}
 
         # Build rich block dicts: list_blocks() returns List[str], we need List[dict]

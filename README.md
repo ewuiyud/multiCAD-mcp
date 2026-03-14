@@ -118,8 +118,8 @@ Edit `src/config.json` to customize:
 - **`logging_level`**: Set to `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control log verbosity
 - **`startup_wait_time`**: Seconds to wait for CAD application to start (increase if CAD is slow)
 - **`command_delay`**: Delay between commands in seconds
-- **`dashboard.port`**: Web dashboard port (default: 6666)
-- **`open_dashboard`**: [host, port] — open web dashboard in browser (default from config.json: 6666)
+- **`dashboard.port`**: Web dashboard port (default: 8888)
+- **`open_dashboard`**: [host, port] — open web dashboard in browser (default from config.json: 8888)
 - **`output.directory`**: Default directory for saved drawings and exports
 
 ## Troubleshooting

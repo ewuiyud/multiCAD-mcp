@@ -139,7 +139,7 @@ class ConfigManager:
                 format="dwg",
             ),
             dashboard=DashboardConfig(
-                port=6666,
+                port=8888,
                 host="127.0.0.1",
             ),
             logging_level="INFO",
@@ -159,10 +159,17 @@ class ConfigManager:
                     startup_wait_time=float(cad_dict.get("startup_wait_time", 20.0)),
                 )
 
+            # Parse output config
+            out_dict = config_dict.get("output", {})
+            output = OutputConfig(
+                directory=out_dict.get("directory", "~/Documents/multiCAD Exports"),
+                format=out_dict.get("format", "dwg"),
+            )
+
             # Parse dashboard config
             dash_dict = config_dict.get("dashboard", {})
             dashboard = DashboardConfig(
-                port=int(dash_dict.get("port", 6666)),
+                port=int(dash_dict.get("port", 8888)),
                 host=dash_dict.get("host", "127.0.0.1"),
             )
 

@@ -6,10 +6,10 @@ The multiCAD-mcp server includes an integrated web dashboard for real-time monit
 
 ## Access
 
-When the server is running, the dashboard is available at (default from config.json: 6666):
+When the server is running, the dashboard is available at (default: 8888):
 
 ```
-http://localhost:6666
+http://localhost:8888
 ```
 
 The dashboard provides a real-time monitor of the CAD state. You can manually refresh the data using the "Refresh Now" button.

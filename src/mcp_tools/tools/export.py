@@ -13,7 +13,6 @@ Two dimensions:
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 
 from mcp_tools.decorators import cad_tool, get_current_adapter

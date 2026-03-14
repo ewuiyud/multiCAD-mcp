@@ -143,6 +143,11 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[dependency-groups]
+docs = [
+    "backrefs>=6.2",
+]
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/**" = ["D100", "D101", "D102", "D103"]

@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from core import CADOperationError, get_config
+from core import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class FileMixin:
             config = get_config()
 
             # SECURITY: Resolve output directory first (reference for validation)
-            output_dir = Path(config.output.directory).expanduser().resolve()
+            _output_dir = Path(config.output.directory).expanduser().resolve()
 
             # ========== Determine Filename ==========
             if filepath:

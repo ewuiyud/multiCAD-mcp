@@ -7,7 +7,6 @@ Contains helper methods, decorators, context managers, and utility classes.
 import logging
 import time
 import math
-import os
 from pathlib import Path
 from typing import Any, Callable, TypeVar, List, Optional, TYPE_CHECKING
 from functools import wraps
@@ -36,7 +35,6 @@ from mcp_tools.constants import (
     AUTOCAD_WINDOW_CLASSES,
     CLICK_DELAY,
     CLICK_HOLD_DELAY,
-    CAD_WINDOW_SEARCH_TERMS,
 )
 
 logger = logging.getLogger(__name__)

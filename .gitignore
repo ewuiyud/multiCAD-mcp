@@ -39,3 +39,6 @@ _archive
 
 # MkDocs generated site
 site/
+
+
+.ruff_cache
