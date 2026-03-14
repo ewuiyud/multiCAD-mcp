@@ -1,6 +1,6 @@
-
 import win32com.client
 import pythoncom
+
 
 def analyze_mleader():
     try:
@@ -19,7 +19,7 @@ def analyze_mleader():
             return
 
         print(f"Analyzing Entity: {entity.ObjectName} (Handle: {entity.Handle})")
-        
+
         # MLeader specific analysis
         if entity.ObjectName == "AcDbMLeader":
             print(f"  ContentType: {entity.ContentType}")
@@ -27,16 +27,18 @@ def analyze_mleader():
             try:
                 # Inspect Leader Lines
                 # GetLeaderLineIndexes returns an array of indexes
-                indexes = entity.GetLeaderLineIndexes(0) # 0 is usually the leader index
+                indexes = entity.GetLeaderLineIndexes(
+                    0
+                )  # 0 is usually the leader index
                 print(f"  LeaderLineIndexes (Group 0): {indexes}")
-                
+
                 if indexes:
                     for idx in indexes:
                         print(f"    Line Index: {idx}")
                         # GetLeaderLineVertices returns array of coordinates (x,y,z, x,y,z...)
                         vertices = entity.GetLeaderLineVertices(idx)
                         print(f"      Vertices: {vertices}")
-                        
+
                 # Check for other leader groups/indexes
                 # AddMLeader documentation suggests usage of 'leaderIndex'
                 # Let's try to probe if there are other groups
@@ -51,6 +53,7 @@ def analyze_mleader():
 
     except Exception as e:
         print(f"Global Error: {e}")
+
 
 if __name__ == "__main__":
     analyze_mleader()

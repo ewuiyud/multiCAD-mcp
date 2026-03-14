@@ -84,7 +84,7 @@ def cad_tool(mcp: FastMCP, operation_name: str):
     Decorator for standardizing adapter access and error handling.
 
     Automatically:
-    1. Resolves the correct adapter based on cad_type parameter
+    1. Resolves the active or default CAD adapter automatically
     2. Sets current adapter in context for the decorated function
     3. Wraps with try/except for consistent error handling
     4. Raises CADOperationError on failure
@@ -131,7 +131,7 @@ def cad_tool_with_ui(
     for enhanced visualization in MCP Apps-compatible hosts (Claude Desktop, VS Code).
 
     Automatically:
-    1. Resolves the correct adapter based on cad_type parameter
+    1. Resolves the active or default CAD adapter automatically
     2. Sets current adapter in context for the decorated function
     3. Wraps with try/except for consistent error handling
     4. Raises CADOperationError on failure
@@ -161,7 +161,7 @@ def cad_tool_with_ui(
             from adapters.adapter_manager import get_adapter
 
             try:
-                set_current_adapter(get_adapter(None))
+                set_current_adapter(get_adapter())
                 return func(*args, **kwargs)
             except CADOperationError:
                 raise

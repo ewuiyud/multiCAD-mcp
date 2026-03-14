@@ -2469,7 +2469,7 @@ class AutoCADAdapter(CADInterface):
                         rate = entity_count / elapsed if elapsed > 0 else 0
                         logger.info(
                             f"[PERF] Progress: {entity_count}/{total_entities} entities "
-                            f"({entity_count*100//total_entities}%) - {rate:.1f} entities/s"
+                            f"({entity_count * 100 // total_entities}%) - {rate:.1f} entities/s"
                         )
 
                     try:
@@ -2538,9 +2538,9 @@ class AutoCADAdapter(CADInterface):
                             radius_val = self._fast_get_property(entity, "Radius")
                             calls_made += 1  # Radius only (not Area, not Circumference)
                             com_call_stats["calls_by_type"]["CIRCLE"] += 1
-                            com_call_stats[
-                                "properties_skipped"
-                            ] += 2  # Skipped Area and Circumference COM calls
+                            com_call_stats["properties_skipped"] += (
+                                2  # Skipped Area and Circumference COM calls
+                            )
 
                             if radius_val is not None:
                                 try:
@@ -2597,9 +2597,9 @@ class AutoCADAdapter(CADInterface):
 
                             if "LINE" in object_type_upper:
                                 com_call_stats["calls_by_type"]["LINE"] += 1
-                                com_call_stats[
-                                    "properties_skipped"
-                                ] += 3  # Skipped Area, Radius, Circumference
+                                com_call_stats["properties_skipped"] += (
+                                    3  # Skipped Area, Radius, Circumference
+                                )
                             elif "POLY" in object_type_upper:
                                 com_call_stats["calls_by_type"]["POLYLINE"] += 1
 
@@ -2613,9 +2613,9 @@ class AutoCADAdapter(CADInterface):
                             if "POLY" in object_type_upper:
                                 area_val = self._fast_get_property(entity, "Area")
                                 calls_made += 1
-                                com_call_stats[
-                                    "properties_skipped"
-                                ] += 2  # Skipped Radius, Circumference
+                                com_call_stats["properties_skipped"] += (
+                                    2  # Skipped Radius, Circumference
+                                )
                                 if area_val is not None:
                                     try:
                                         area = float(area_val)
@@ -2632,9 +2632,9 @@ class AutoCADAdapter(CADInterface):
                         else:
                             # Other entity types (TEXT, DIMENSION, etc.)
                             com_call_stats["calls_by_type"]["OTHER"] += 1
-                            com_call_stats[
-                                "properties_skipped"
-                            ] += 4  # All geometry properties
+                            com_call_stats["properties_skipped"] += (
+                                4  # All geometry properties
+                            )
 
                         # Track total COM calls
                         com_call_stats["total_calls"] += calls_made
@@ -2674,7 +2674,7 @@ class AutoCADAdapter(CADInterface):
                 f"(processed {entity_count}, {error_count} errors)"
             )
             logger.info(
-                f"[PERF] Entity iteration/extraction took {perf_iteration_time:.3f}s ({entity_count/perf_iteration_time:.1f} entities/s)"
+                f"[PERF] Entity iteration/extraction took {perf_iteration_time:.3f}s ({entity_count / perf_iteration_time:.1f} entities/s)"
             )
 
             # Detailed property timing breakdown
@@ -2894,7 +2894,7 @@ class AutoCADAdapter(CADInterface):
 
             perf_write_time = time.perf_counter() - perf_start_write
             logger.info(
-                f"[PERF] Writing {len(data)} rows of data took {perf_write_time:.3f}s ({len(data)/perf_write_time:.1f} rows/s)"
+                f"[PERF] Writing {len(data)} rows of data took {perf_write_time:.3f}s ({len(data) / perf_write_time:.1f} rows/s)"
             )
 
             # Auto-adjust column widths

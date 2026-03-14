@@ -536,7 +536,7 @@ class TestDataExport:
 
         with patch.object(
             adapter, "extract_drawing_data"
-        ) as mock_extract, patch.object(adapter, "list_layers") as mock_list_layers:
+        ) as mock_extract, patch.object(adapter, "get_layers_info") as mock_get_layers_info:
 
             # Mock drawing data
             mock_extract.return_value = [
@@ -560,8 +560,24 @@ class TestDataExport:
                 },
             ]
 
-            # Mock layers
-            mock_list_layers.return_value = ["0", "1", "MyLayer"]
+            # Mock layers info
+            mock_get_layers_info.return_value = [
+                {
+                    "Name": "0", "ObjectCount": 1, "Color": "white",
+                    "Linetype": "Continuous", "Lineweight": "Default",
+                    "IsLocked": False, "IsVisible": True,
+                },
+                {
+                    "Name": "1", "ObjectCount": 0, "Color": "red",
+                    "Linetype": "Continuous", "Lineweight": "Default",
+                    "IsLocked": False, "IsVisible": True,
+                },
+                {
+                    "Name": "MyLayer", "ObjectCount": 2, "Color": "blue",
+                    "Linetype": "Dashed", "Lineweight": "0.5",
+                    "IsLocked": True, "IsVisible": False,
+                },
+            ]
 
             # Use filename that will be saved to configured output directory
             filename = "test_export.xlsx"
@@ -575,7 +591,7 @@ class TestDataExport:
                 # Get expected filepath
                 config = get_config()
                 output_dir = Path(config.output.directory).expanduser().resolve()
-                filepath = output_dir / filename
+                filepath = output_dir / "sheets" / filename
 
                 # File should exist
                 assert filepath.exists()
@@ -657,7 +673,7 @@ class TestDataExport:
                 # Get expected filepath
                 config = get_config()
                 output_dir = Path(config.output.directory).expanduser().resolve()
-                filepath = output_dir / filename
+                filepath = output_dir / "sheets" / filename
 
                 # Load the workbook and check sheets
                 workbook = load_workbook(str(filepath))
@@ -688,7 +704,7 @@ class TestDataExport:
                 # Cleanup
                 config = get_config()
                 output_dir = Path(config.output.directory).expanduser().resolve()
-                filepath = output_dir / filename
+                filepath = output_dir / "sheets" / filename
                 if filepath.exists():
                     filepath.unlink()
 

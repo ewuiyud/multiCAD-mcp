@@ -32,9 +32,9 @@ def _set_cell_value_safe(ws, row: int, col: int, value):
                 merged_range.min_row <= row <= merged_range.max_row
                 and merged_range.min_col <= col <= merged_range.max_col
             ):
-                ws.cell(row=merged_range.min_row, column=merged_range.min_col).value = (
-                    value
-                )
+                ws.cell(
+                    row=merged_range.min_row, column=merged_range.min_col
+                ).value = value
                 return
     cell.value = value
 

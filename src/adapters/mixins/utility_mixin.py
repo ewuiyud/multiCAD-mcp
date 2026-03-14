@@ -182,24 +182,55 @@ class UtilityMixin:
         def validate_lineweight(self, weight: int) -> int: ...
 
     def _validate_connection(self) -> None:
-        """Raise error if not connected."""
-        if not self.is_connected():
-            raise CADOperationError("connection", "Not connected to CAD application")
-        if self.document is None:
-            raise CADOperationError("connection", "Document is not available")
+        """Check if connection is still alive, otherwise reconnect.
+        
+        Is thread-safe: each thread will have its own proxy via self._local.
+        """
+        import threading
+        if self.application is None:
+            from .connection_mixin import ConnectionMixin
+            if isinstance(self, ConnectionMixin):
+                self.connect(only_if_running=True)
+            else:
+                logger.warning("_validate_connection: application is None and self is not ConnectionMixin")
+                return
 
-    def _get_document(self, operation: str = "operation") -> Any:
-        """Get document with validation. Raises if not available."""
-        self._validate_connection()
-        if self.document is None:
-            raise CADOperationError(operation, "Document not available")
-        return self.document
+        try:
+            # Simple ping to verify COM proxy is still valid for THIS thread
+            _ = self.application.Visible
+        except Exception as e:
+            logger.debug(f"Connection validation failed (thread {threading.get_ident()}): {e}")
+            from .connection_mixin import ConnectionMixin
+            if isinstance(self, ConnectionMixin):
+                self.connect(only_if_running=True)
 
     def _get_application(self, operation: str = "operation") -> Any:
-        """Get application with validation. Raises if not available."""
+        """Helper to ensure application is available for an operation."""
+        self._validate_connection()
         if self.application is None:
-            raise CADOperationError(operation, "Application not available")
+            from core import CADConnectionError
+            raise CADConnectionError(f"No active {self.cad_type} instance for {operation}")
         return self.application
+
+    def _get_document(self, operation: str = "operation") -> Any:
+        """Helper to ensure document is available for an operation."""
+        self._validate_connection()
+        
+        if self.document is None:
+            # Try to grab ActiveDocument if it's missing in this thread
+            app = self._get_application(operation)
+            try:
+                self.document = app.ActiveDocument
+            except Exception as e:
+                logger.error(f"Failed to get ActiveDocument for {operation}: {e}")
+                from core import CADConnectionError
+                raise CADConnectionError(f"No active document for {operation}")
+
+        if self.document is None:
+             from core import CADConnectionError
+             raise CADConnectionError(f"No active document for {operation}")
+             
+        return self.document
 
     def _wait_for(
         self,
@@ -526,7 +557,9 @@ class UtilityMixin:
 
         if angle is not None:
             if not -360 <= angle <= 360:
-                logger.warning(f"{operation}: Angle {angle} outside normal range [-360, 360]")
+                logger.warning(
+                    f"{operation}: Angle {angle} outside normal range [-360, 360]"
+                )
 
         if points is not None:
             if not isinstance(points, (list, tuple)):

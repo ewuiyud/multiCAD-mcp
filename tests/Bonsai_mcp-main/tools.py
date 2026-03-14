@@ -17,21 +17,25 @@ from bc3_writer import IFC2BC3Converter
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("BlenderMCPServer")
+
 
 @dataclass
 class BlenderConnection:
     host: str
     port: int
-    sock: socket.socket = None  # Changed from 'socket' to 'sock' to avoid naming conflict
-    
+    sock: socket.socket = (
+        None  # Changed from 'socket' to 'sock' to avoid naming conflict
+    )
+
     def connect(self) -> bool:
         """Connect to the Blender addon socket server"""
         if self.sock:
             return True
-            
+
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.host, self.port))
@@ -41,7 +45,7 @@ class BlenderConnection:
             logger.error(f"Failed to connect to Blender: {str(e)}")
             self.sock = None
             return False
-    
+
     def disconnect(self):
         """Disconnect from the Blender addon"""
         if self.sock:
@@ -57,23 +61,27 @@ class BlenderConnection:
         chunks = []
         # Use a consistent timeout value that matches the addon's timeout
         sock.settimeout(15.0)  # Match the addon's timeout
-        
+
         try:
             while True:
                 try:
                     chunk = sock.recv(buffer_size)
                     if not chunk:
                         # If we get an empty chunk, the connection might be closed
-                        if not chunks:  # If we haven't received anything yet, this is an error
-                            raise Exception("Connection closed before receiving any data")
+                        if (
+                            not chunks
+                        ):  # If we haven't received anything yet, this is an error
+                            raise Exception(
+                                "Connection closed before receiving any data"
+                            )
                         break
-                    
+
                     chunks.append(chunk)
-                    
+
                     # Check if we've received a complete JSON object
                     try:
-                        data = b''.join(chunks)
-                        json.loads(data.decode('utf-8'))
+                        data = b"".join(chunks)
+                        json.loads(data.decode("utf-8"))
                         # If we get here, it parsed successfully
                         logger.info(f"Received complete response ({len(data)} bytes)")
                         return data
@@ -92,15 +100,15 @@ class BlenderConnection:
         except Exception as e:
             logger.error(f"Error during receive: {str(e)}")
             raise
-            
+
         # If we get here, we either timed out or broke out of the loop
         # Try to use what we have
         if chunks:
-            data = b''.join(chunks)
+            data = b"".join(chunks)
             logger.info(f"Returning data after receive completion ({len(data)} bytes)")
             try:
                 # Try to parse what we have
-                json.loads(data.decode('utf-8'))
+                json.loads(data.decode("utf-8"))
                 return data
             except json.JSONDecodeError:
                 # If we can't parse it, it's incomplete
@@ -108,45 +116,46 @@ class BlenderConnection:
         else:
             raise Exception("No data received")
 
-    def send_command(self, command_type: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    def send_command(
+        self, command_type: str, params: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
         """Send a command to Blender and return the response"""
         if not self.sock and not self.connect():
             raise ConnectionError("Not connected to Blender")
-        
-        command = {
-            "type": command_type,
-            "params": params or {}
-        }
-        
+
+        command = {"type": command_type, "params": params or {}}
+
         try:
             # Log the command being sent
             logger.info(f"Sending command: {command_type} with params: {params}")
-            
+
             # Send the command
-            self.sock.sendall(json.dumps(command).encode('utf-8'))
+            self.sock.sendall(json.dumps(command).encode("utf-8"))
             logger.info(f"Command sent, waiting for response...")
-            
+
             # Set a timeout for receiving - use the same timeout as in receive_full_response
             self.sock.settimeout(15.0)  # Match the addon's timeout
-            
+
             # Receive the response using the improved receive_full_response method
             response_data = self.receive_full_response(self.sock)
             logger.info(f"Received {len(response_data)} bytes of data")
-            
-            response = json.loads(response_data.decode('utf-8'))
+
+            response = json.loads(response_data.decode("utf-8"))
             logger.info(f"Response parsed, status: {response.get('status', 'unknown')}")
-            
+
             if response.get("status") == "error":
                 logger.error(f"Blender error: {response.get('message')}")
                 raise Exception(response.get("message", "Unknown error from Blender"))
-            
+
             return response.get("result", {})
         except socket.timeout:
             logger.error("Socket timeout while waiting for response from Blender")
             # Don't try to reconnect here - let the get_blender_connection handle reconnection
             # Just invalidate the current socket so it will be recreated next time
             self.sock = None
-            raise Exception("Timeout waiting for Blender response - try simplifying your request")
+            raise Exception(
+                "Timeout waiting for Blender response - try simplifying your request"
+            )
         except (ConnectionError, BrokenPipeError, ConnectionResetError) as e:
             logger.error(f"Socket connection error: {str(e)}")
             self.sock = None
@@ -154,7 +163,7 @@ class BlenderConnection:
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON response from Blender: {str(e)}")
             # Try to log what was received
-            if 'response_data' in locals() and response_data:
+            if "response_data" in locals() and response_data:
                 logger.error(f"Raw response (first 200 bytes): {response_data[:200]}")
             raise Exception(f"Invalid response from Blender: {str(e)}")
         except Exception as e:
@@ -163,16 +172,17 @@ class BlenderConnection:
             self.sock = None
             raise Exception(f"Communication error with Blender: {str(e)}")
 
+
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
     """Manage server startup and shutdown lifecycle"""
     # We don't need to create a connection here since we're using the global connection
     # for resources and tools
-    
+
     try:
         # Just log that we're starting up
         logger.info("BlenderMCP server starting up")
-        
+
         # Try to connect to Blender on startup to verify it's available
         try:
             # This will initialize the global connection if needed
@@ -180,8 +190,10 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
             logger.info("Successfully connected to Blender on startup")
         except Exception as e:
             logger.warning(f"Could not connect to Blender on startup: {str(e)}")
-            logger.warning("Make sure the Blender addon is running before using Blender resources or tools")
-        
+            logger.warning(
+                "Make sure the Blender addon is running before using Blender resources or tools"
+            )
+
         # Return an empty context - we're using the global connection
         yield {}
     finally:
@@ -193,11 +205,12 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
             _blender_connection = None
         logger.info("BlenderMCP server shut down")
 
+
 # Create the MCP server with lifespan support
 mcp = FastMCP(
     "Bonsai MCP",
     description="IFC manipulation through Blender and MCP",
-    lifespan=server_lifespan
+    lifespan=server_lifespan,
 )
 
 # Resource endpoints
@@ -205,10 +218,11 @@ mcp = FastMCP(
 # Global connection for resources (since resources can't access context)
 _blender_connection = None
 
+
 def get_blender_connection():
     """Get or create a persistent Blender connection"""
     global _blender_connection
-    
+
     # If we have an existing connection, check if it's still valid
     if _blender_connection is not None:
         try:
@@ -223,158 +237,177 @@ def get_blender_connection():
             except:
                 pass
             _blender_connection = None
-    
+
     # Create a new connection if needed
     if _blender_connection is None:
         _blender_connection = BlenderConnection(host="localhost", port=9876)
         if not _blender_connection.connect():
             logger.error("Failed to connect to Blender")
             _blender_connection = None
-            raise Exception("Could not connect to Blender. Make sure the Blender addon is running.")
+            raise Exception(
+                "Could not connect to Blender. Make sure the Blender addon is running."
+            )
         logger.info("Created new persistent connection to Blender")
-    
+
     return _blender_connection
+
 
 # -------------------------------
 # MCP TOOLS
 # -------------------------------
 
+
 @mcp.tool()
 def execute_blender_code(ctx: Context, code: str) -> str:
     """
     Execute arbitrary Python code in Blender.
-    
+
     Parameters:
     - code: The Python code to execute
     """
     try:
         # Get the global connection
         blender = get_blender_connection()
-        
+
         result = blender.send_command("execute_code", {"code": code})
         return f"Code executed successfully: {result.get('result', '')}"
     except Exception as e:
         logger.error(f"Error executing code: {str(e)}")
         return f"Error executing code: {str(e)}"
-    
+
 
 ### IFC Tools
 @mcp.tool()
 def get_ifc_project_info() -> str:
     """
-    Get basic information about the IFC project, including name, description, 
+    Get basic information about the IFC project, including name, description,
     and counts of different entity types.
-    
+
     Returns:
         A JSON-formatted string with project information
     """
     try:
         blender = get_blender_connection()
         result = blender.send_command("get_ifc_project_info")
-        
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting IFC project info: {str(e)}")
         return f"Error getting IFC project info: {str(e)}"
 
+
 @mcp.tool()
 def get_selected_ifc_entities() -> str:
     """
     Get IFC entities corresponding to the currently selected objects in Blender.
     This allows working specifically with objects the user has manually selected in the Blender UI.
-    
+
     Returns:
         A JSON-formatted string with information about the selected IFC entities
     """
     try:
         blender = get_blender_connection()
         result = blender.send_command("get_selected_ifc_entities")
-        
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting selected IFC entities: {str(e)}")
         return f"Error getting selected IFC entities: {str(e)}"
 
+
 # Modify the existing list_ifc_entities function to accept a selected_only parameter
 @mcp.tool()
-def list_ifc_entities(entity_type: str | None = None, limit: int = 50, selected_only: bool = False) -> str:
+def list_ifc_entities(
+    entity_type: str | None = None, limit: int = 50, selected_only: bool = False
+) -> str:
     """
     List IFC entities of a specific type. Can be filtered to only include objects
     currently selected in the Blender UI.
-    
+
     Args:
         entity_type: Type of IFC entity to list (e.g., "IfcWall")
         limit: Maximum number of entities to return
         selected_only: If True, only return information about selected objects
-    
+
     Returns:
         A JSON-formatted string listing the specified entities
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("list_ifc_entities", {
-            "entity_type": entity_type,
-            "limit": limit,
-            "selected_only": selected_only
-        })
-        
+        result = blender.send_command(
+            "list_ifc_entities",
+            {
+                "entity_type": entity_type,
+                "limit": limit,
+                "selected_only": selected_only,
+            },
+        )
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error listing IFC entities: {str(e)}")
         return f"Error listing IFC entities: {str(e)}"
 
+
 # Modify the existing get_ifc_properties function to accept a selected_only parameter
 @mcp.tool()
-def get_ifc_properties(global_id: str | None = None, selected_only: bool = False) -> str:
+def get_ifc_properties(
+    global_id: str | None = None, selected_only: bool = False
+) -> str:
     """
     Get properties of IFC entities. Can be used to get properties of a specific entity by GlobalId,
     or to get properties of all currently selected objects in Blender.
-    
+
     Args:
         global_id: GlobalId of a specific IFC entity (optional if selected_only is True)
         selected_only: If True, return properties for all selected objects instead of a specific entity
-    
+
     Returns:
         A JSON-formatted string with entity information and properties
     """
     try:
         blender = get_blender_connection()
-        
+
         # Validate parameters
         if not global_id and not selected_only:
-            return json.dumps({"error": "Either global_id or selected_only must be specified"}, indent=2)
-        
-        result = blender.send_command("get_ifc_properties", {
-            "global_id": global_id,
-            "selected_only": selected_only
-        })
-        
+            return json.dumps(
+                {"error": "Either global_id or selected_only must be specified"},
+                indent=2,
+            )
+
+        result = blender.send_command(
+            "get_ifc_properties",
+            {"global_id": global_id, "selected_only": selected_only},
+        )
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting IFC properties: {str(e)}")
         return f"Error getting IFC properties: {str(e)}"
-    
+
+
 @mcp.tool()
 def get_ifc_spatial_structure() -> str:
     """
     Get the spatial structure of the IFC model (site, building, storey, space hierarchy).
-    
+
     Returns:
         A JSON-formatted string representing the hierarchical structure of the IFC model
     """
     try:
         blender = get_blender_connection()
         result = blender.send_command("get_ifc_spatial_structure")
-        
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting IFC spatial structure: {str(e)}")
         return f"Error getting IFC spatial structure: {str(e)}"
+
 
 @mcp.tool()
 def get_ifc_total_structure() -> str:
@@ -400,47 +433,47 @@ def get_ifc_total_structure() -> str:
         logger.error(f"Error getting IFC total structure: {str(e)}")
         return f"Error getting IFC total structure: {str(e)}"
 
+
 @mcp.tool()
 def get_ifc_relationships(global_id: str) -> str:
     """
     Get all relationships for a specific IFC entity.
-    
+
     Args:
         global_id: GlobalId of the IFC entity
-    
+
     Returns:
         A JSON-formatted string with all relationships the entity participates in
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_ifc_relationships", {
-            "global_id": global_id
-        })
-        
+        result = blender.send_command("get_ifc_relationships", {"global_id": global_id})
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting IFC relationships: {str(e)}")
         return f"Error getting IFC relationships: {str(e)}"
-    
+
+
 @mcp.tool()
 def export_ifc_data(
-    entity_type: str | None = None, 
-    level_name: str | None = None, 
+    entity_type: str | None = None,
+    level_name: str | None = None,
     output_format: str = "csv",
-    ctx: Context | None = None
+    ctx: Context | None = None,
 ) -> str:
     """
     Export IFC data to a file in JSON or CSV format.
-    
+
     This tool extracts IFC data and creates a structured export file. You can filter
     by entity type and/or building level, and choose the output format.
-    
+
     Args:
         entity_type: Type of IFC entity to export (e.g., "IfcWall") - leave empty for all entities
         level_name: Name of the building level to filter by (e.g., "Level 1") - leave empty for all levels
         output_format: "json" or "csv" format for the output file
-        
+
     Returns:
         Confirmation message with the export file path or an error message
     """
@@ -453,78 +486,84 @@ def export_ifc_data(
             return "Error: output_format must be 'json' or 'csv'"
 
         # Execute the export code in Blender
-        result = blender.send_command("export_ifc_data", {
-            "entity_type": entity_type,
-            "level_name": level_name,
-            "output_format": output_format
-        })
-        
+        result = blender.send_command(
+            "export_ifc_data",
+            {
+                "entity_type": entity_type,
+                "level_name": level_name,
+                "output_format": output_format,
+            },
+        )
+
         # Check for errors from Blender
         if isinstance(result, dict) and "error" in result:
             return f"Error: {result['error']}"
-        
+
         # Return the result with export summary
         # return result
         return json.dumps(result, indent=2)
-    
+
     except Exception as e:
         logger.error(f"Error exporting IFC data: {str(e)}")
         return f"Error exporting IFC data: {str(e)}"
-    
+
+
 @mcp.tool()
 def place_ifc_object(
-    type_name: str, 
-    x: float, 
-    y: float, 
-    z: float, 
+    type_name: str,
+    x: float,
+    y: float,
+    z: float,
     rotation: float = 0.0,
-    ctx: Context| None = None
+    ctx: Context | None = None,
 ) -> str:
     """
     Place an IFC object at a specified location with optional rotation.
-    
+
     This tool allows you to create and position IFC elements in the model.
     The object is placed using the specified IFC type and positioned
     at the given coordinates with optional rotation around the Z axis.
-    
+
     Args:
         type_name: Name of the IFC element type to place (must exist in the model)
         x: X-coordinate in model space
         y: Y-coordinate in model space
         z: Z-coordinate in model space
         rotation: Rotation angle in degrees around the Z axis (default: 0)
-        
+
     Returns:
         A message with the result of the placement operation
     """
     try:
         # Get Blender connection
         blender = get_blender_connection()
-        
+
         # Send command to place the object
-        result = blender.send_command("place_ifc_object", {
-            "type_name": type_name,
-            "location": [x, y, z],
-            "rotation": rotation
-        })
-        
+        result = blender.send_command(
+            "place_ifc_object",
+            {"type_name": type_name, "location": [x, y, z], "rotation": rotation},
+        )
+
         # Check for errors
         if isinstance(result, dict) and "error" in result:
             return f"Error placing object: {result['error']}"
-        
+
         # Format success message
         if isinstance(result, dict) and result.get("success"):
-            return (f"Successfully placed '{type_name}' object at ({x}, {y}, {z}) "
-                   f"with {rotation}° rotation.\nObject name: {result.get('blender_name')}, "
-                   f"Global ID: {result.get('global_id')}")
-        
+            return (
+                f"Successfully placed '{type_name}' object at ({x}, {y}, {z}) "
+                f"with {rotation}° rotation.\nObject name: {result.get('blender_name')}, "
+                f"Global ID: {result.get('global_id')}"
+            )
+
         # Return the raw result as string if it's not a success or error dict
         return f"Placement result: {json.dumps(result, indent=2)}"
-    
+
     except Exception as e:
         logger.error(f"Error placing IFC object: {str(e)}")
         return f"Error placing IFC object: {str(e)}"
-    
+
+
 @mcp.tool()
 def get_user_view() -> Image:
     """
@@ -532,11 +571,11 @@ def get_user_view() -> Image:
     Shows what the user is currently seeing in Blender.
 
     Focus mostly on the 3D viewport. Use the UI to assist in your understanding of the scene but only refer to it if specifically prompted.
-    
+
     Args:
         max_dimension: Maximum dimension (width or height) in pixels for the returned image
         compression_quality: Image compression quality (1-100, higher is better quality but larger)
-    
+
     Returns:
         An image of the current Blender viewport
     """
@@ -550,32 +589,32 @@ def get_user_view() -> Image:
     try:
         # Get the global connection
         blender = get_blender_connection()
-        
+
         # Request current view
         result = blender.send_command("get_current_view")
-        
+
         if "error" in result:
             # logger.error(f"Error getting view from Blender: {result.get('error')}")
             raise Exception(f"Error getting current view: {result.get('error')}")
-        
+
         # Extract image information
         if "data" not in result or "width" not in result or "height" not in result:
             # logger.error("Incomplete image data returned from Blender")
             raise Exception("Incomplete image data returned from Blender")
-        
+
         # Decode the base64 image data
         image_data = base64.b64decode(result["data"])
         original_width = result["width"]
         original_height = result["height"]
         original_format = result.get("format", "png")
-        
+
         # Compression is only needed if the image is large
         if original_width > 800 or original_height > 800 or len(image_data) > 1000000:
             # logger.info(f"Compressing image (original size: {len(image_data)} bytes)")
-            
+
             # Open image from binary data
             img = PILImage.open(io.BytesIO(image_data))
-            
+
             # Resize if needed
             if original_width > max_dimension or original_height > max_dimension:
                 # Calculate new dimensions maintaining aspect ratio
@@ -585,51 +624,53 @@ def get_user_view() -> Image:
                 else:
                     new_height = max_dimension
                     new_width = int(original_width * (max_dimension / original_height))
-                
+
                 # Resize using high-quality resampling
                 img = img.resize((new_width, new_height), PILImage.Resampling.LANCZOS)
-            
+
             # Convert to RGB if needed
-            if img.mode == 'RGBA':
-                img = img.convert('RGB')
-            
+            if img.mode == "RGBA":
+                img = img.convert("RGB")
+
             # Save as JPEG with compression
             output = io.BytesIO()
-            img.save(output, format='JPEG', quality=compression_quality, optimize=True)
+            img.save(output, format="JPEG", quality=compression_quality, optimize=True)
             compressed_data = output.getvalue()
 
             # logger.info(f"Image compressed from {len(image_data)} to {len(compressed_data)} bytes")
-            
+
             # Return compressed image
             return Image(data=compressed_data, format="jpeg")
         else:
             # Image is small enough, return as-is
             return Image(data=image_data, format=original_format)
-            
+
     except Exception as e:
         # logger.error(f"Error processing viewport image: {str(e)}")
         raise Exception(f"Error processing viewport image: {str(e)}")
+
 
 @mcp.tool()
 def get_ifc_quantities() -> str:
     """
     Extract and get basic qtos about the IFC project.
-    
+
     Returns:
         A JSON-formatted string with project quantities information
     """
     try:
         blender = get_blender_connection()
         result = blender.send_command("get_ifc_quantities")
-        
+
         # Return the formatted JSON of the results
         return json.dumps(result, indent=2)
     except Exception as e:
         logger.error(f"Error getting IFC project quantities: {str(e)}")
         return f"Error getting IFC project quantities: {str(e)}"
 
+
 @mcp.tool()
-def export_bc3_budget(language: str = 'es') -> str:
+def export_bc3_budget(language: str = "es") -> str:
     """
     Export a BC3 budget file (FIEBDC-3/2016) based on the IFC model loaded in Blender.
 
@@ -669,7 +710,9 @@ def export_bc3_budget(language: str = 'es') -> str:
 
         # Validate that we got valid JSON responses
         # If there's an error, these functions return error strings starting with "Error"
-        if isinstance(ifc_total_structure, str) and ifc_total_structure.startswith("Error"):
+        if isinstance(ifc_total_structure, str) and ifc_total_structure.startswith(
+            "Error"
+        ):
             return f"Failed to get IFC structure: {ifc_total_structure}"
 
         if isinstance(ifc_quantities, str) and ifc_quantities.startswith("Error"):
@@ -677,8 +720,16 @@ def export_bc3_budget(language: str = 'es') -> str:
 
         # Try to parse the JSON to ensure it's valid
         try:
-            structure_data = json.loads(ifc_total_structure) if isinstance(ifc_total_structure, str) else ifc_total_structure
-            quantities_data = json.loads(ifc_quantities) if isinstance(ifc_quantities, str) else ifc_quantities
+            structure_data = (
+                json.loads(ifc_total_structure)
+                if isinstance(ifc_total_structure, str)
+                else ifc_total_structure
+            )
+            quantities_data = (
+                json.loads(ifc_quantities)
+                if isinstance(ifc_quantities, str)
+                else ifc_quantities
+            )
         except json.JSONDecodeError as e:
             return f"Invalid JSON data received from Blender. Structure error: {str(e)}"
 
@@ -691,28 +742,29 @@ def export_bc3_budget(language: str = 'es') -> str:
         logger.error(f"Error creating BC3 budget: {str(e)}")
         return f"Error creating BC3 budget: {str(e)}"
 
-# WIP, not ready to be implemented:  
+
+# WIP, not ready to be implemented:
 # @mcp.tool()
-# def create_plan_view(height_offset: float = 0.5, view_type: str = "top", 
+# def create_plan_view(height_offset: float = 0.5, view_type: str = "top",
 #                     resolution_x: int = 400, resolution_y: int = 400,
 #                     output_path: str = None) -> Image:
 #     """
 #     Create a plan view (top-down view) at the specified height above the first building story.
-    
+
 #     Args:
 #         height_offset: Height in meters above the building story (default 0.5m)
 #         view_type: Type of view - "top", "front", "right", "left" (note: only "top" is fully implemented)
 #         resolution_x: Horizontal resolution of the render in pixels - Keep it small, max 800 x 800, recomended 400 x 400
 #         resolution_y: Vertical resolution of the render in pixels
 #         output_path: Optional path to save the rendered image
-    
+
 #     Returns:
 #         A rendered image showing the plan view of the model
 #     """
 #     try:
 #         # Get the global connection
 #         blender = get_blender_connection()
-        
+
 #         # Request an orthographic render
 #         result = blender.send_command("create_orthographic_render", {
 #             "view_type": view_type,
@@ -721,16 +773,16 @@ def export_bc3_budget(language: str = 'es') -> str:
 #             "resolution_y": resolution_y,
 #             "output_path": output_path  # Can be None to use a temporary file
 #         })
-        
+
 #         if "error" in result:
 #             raise Exception(f"Error creating plan view: {result.get('error', 'Unknown error')}")
-        
+
 #         if "data" not in result:
 #             raise Exception("No image data returned from Blender")
-        
+
 #         # Decode the base64 image data
 #         image_data = base64.b64decode(result["data"])
-        
+
 #         # Return as an Image object
 #         return Image(data=image_data, format="png")
 #     except Exception as e:
@@ -745,13 +797,13 @@ def export_drawing_png(
     resolution_x: int = 1920,
     resolution_y: int = 1080,
     storey_name: str | None = None,
-    output_path: str | None = None
+    output_path: str | None = None,
 ) -> dict:
     """Export drawings as PNG images with custom resolution.
-    
-    Creates a drawing, with the view type specified, of the IFC building at the specified 
+
+    Creates a drawing, with the view type specified, of the IFC building at the specified
     height above the floor level. Supports custom resolution for high-quality architectural drawings.
-    
+
     Args:
         height_offset: Height in meters above the storey level for the camera position (default 0.5m)
         view_type: Type of view - "top" for plan view, "front", "right" and "left" for elevation views, and "isometric" for 3D view
@@ -759,58 +811,65 @@ def export_drawing_png(
         resolution_y: Vertical resolution in pixels (default 1080, max recommended 4096)
         storey_name: Specific storey name to add to the file name (if None, prints default in the file name)
         output_path: Optional file path to save the PNG (if None, returns as base64 image)
-    
+
     Returns:
         metadata and the path of the file image of the drawing at the specified resolution
     """
     try:
         # Validate resolution limits for performance
         if resolution_x > 4096 or resolution_y > 4096:
-            raise Exception("Resolution too high. Maximum recommended: 4096x4096 pixels")
-        
+            raise Exception(
+                "Resolution too high. Maximum recommended: 4096x4096 pixels"
+            )
+
         if resolution_x < 100 or resolution_y < 100:
             raise Exception("Resolution too low. Minimum: 100x100 pixels")
-        
+
         # Get the global connection
         blender = get_blender_connection()
-        
+
         # Request drawing render
-        result = blender.send_command("export_drawing_png", {
-            "view_type": view_type,
-            "height_offset": height_offset,
-            "resolution_x": resolution_x,
-            "resolution_y": resolution_y,
-            "storey_name": storey_name,
-            "output_path": output_path
-        })
-        
+        result = blender.send_command(
+            "export_drawing_png",
+            {
+                "view_type": view_type,
+                "height_offset": height_offset,
+                "resolution_x": resolution_x,
+                "resolution_y": resolution_y,
+                "storey_name": storey_name,
+                "output_path": output_path,
+            },
+        )
+
         if "error" in result:
-            raise Exception(f"Error creating {view_type} drawing: {result.get('error', 'Unknown error')}")
-        
+            raise Exception(
+                f"Error creating {view_type} drawing: {result.get('error', 'Unknown error')}"
+            )
+
         if "data" not in result:
             raise Exception("No image data returned from Blender")
-        
+
         # Decode the base64 image data
         image_data = base64.b64decode(result["data"])
-        
+
         # Ensure output path exists
         if not output_path:
             os.makedirs("./exports/drawings", exist_ok=True)
             # Generate filename based on view type
             view_name = {
                 "top": "plan_view",
-                "front": "front_elevation", 
+                "front": "front_elevation",
                 "right": "right_elevation",
                 "left": "left_elevation",
-                "isometric": "isometric_view"
+                "isometric": "isometric_view",
             }.get(view_type, view_type)
             filename = f"{view_name}_{storey_name or 'default'}.png"
             output_path = os.path.join("./exports/drawings", filename)
-        
+
         # Save to file
         with open(output_path, "wb") as f:
             f.write(image_data)
-        
+
         # Return only metadata
         return {
             "status": "success",
@@ -818,10 +877,11 @@ def export_drawing_png(
             # Opcional: si tienes un servidor de archivos, podrías devolver también una URL
             # "url": f"http://localhost:8000/files/{filename}"
         }
-        
+
     except Exception as e:
         logger.error(f"Error exporting drawing: {str(e)}")
-        return { "status": "error", "message": str(e) }
+        return {"status": "error", "message": str(e)}
+
 
 @mcp.tool()
 def get_ifc_georeferencing_info(include_contexts: bool = False) -> str:
@@ -833,7 +893,7 @@ def get_ifc_georeferencing_info(include_contexts: bool = False) -> str:
     ----------
     include_contexts : bool
         If True, adds a breakdown of the RepresentationContexts and operations.
-        
+
 
     Returns
     --------
@@ -879,9 +939,7 @@ def get_ifc_georeferencing_info(include_contexts: bool = False) -> str:
     - It always returns a JSON string with indentation for easier reading.
     """
     blender = get_blender_connection()
-    params = {
-        "include_contexts": bool(include_contexts)
-    }
+    params = {"include_contexts": bool(include_contexts)}
 
     try:
         result = blender.send_command("get_ifc_georeferencing_info", params)
@@ -893,11 +951,12 @@ def get_ifc_georeferencing_info(include_contexts: bool = False) -> str:
             {
                 "georeferenced": False,
                 "error": "Unable to retrieve georeferencing information from the IFC model.",
-                "details": str(e)
+                "details": str(e),
             },
             ensure_ascii=False,
-            indent=2
+            indent=2,
         )
+
 
 @mcp.tool()
 def georeference_ifc_model(
@@ -916,21 +975,22 @@ def georeference_ifc_model(
     true_north_azimuth_deg: float = None,
     context_filter: str = "Model",
     context_index: int = None,
-    site_ref_latitude: list = None,      # [deg, min, sec, millionth]
-    site_ref_longitude: list = None,     # [deg, min, sec, millionth]
+    site_ref_latitude: list = None,  # [deg, min, sec, millionth]
+    site_ref_longitude: list = None,  # [deg, min, sec, millionth]
     site_ref_elevation: float = None,
     site_ref_latitude_dd: float = None,  # Decimal degrees (optional)
-    site_ref_longitude_dd: float = None, # Decimal degrees (optional)
+    site_ref_longitude_dd: float = None,  # Decimal degrees (optional)
     overwrite: bool = False,
     dry_run: bool = False,
     write_path: str = None,
 ) -> str:
     """
-    Georeferences the IFC currently opened in Bonsai/BlenderBIM by creating or 
-    updating IfcProjectedCRS and IfcMapConversion. Optionally updates IfcSite 
+    Georeferences the IFC currently opened in Bonsai/BlenderBIM by creating or
+    updating IfcProjectedCRS and IfcMapConversion. Optionally updates IfcSite
     and writes the file to disk.
     """
     import json
+
     blender = get_blender_connection()
 
     # Build params excluding None values to keep the payload clean
@@ -967,10 +1027,15 @@ def georeference_ifc_model(
     except Exception as e:
         logger.exception("georeference_ifc_model error")
         return json.dumps(
-            {"success": False, "error": "Could not georeference the model.", "details": str(e)},
+            {
+                "success": False,
+                "error": "Could not georeference the model.",
+                "details": str(e),
+            },
             ensure_ascii=False,
             indent=2,
         )
+
 
 @mcp.tool()
 def generate_ids(
@@ -978,11 +1043,11 @@ def generate_ids(
     specs: Union[List[dict], str],  # accepts a list of dicts or a JSON string
     description: str = "",
     author: str = "",
-    ids_version: Union[str, float] = "",    # IDS version (Not IFC version)
+    ids_version: Union[str, float] = "",  # IDS version (Not IFC version)
     purpose: str = "",
     milestone: str = "",
     date_iso: str = None,
-    output_path: str = None,    
+    output_path: str = None,
 ) -> str:
     """
     Creates an .ids file in Blender/Bonsai by calling the add-on handler 'generate_ids'.
@@ -996,7 +1061,7 @@ def generate_ids(
       - output_path (str): Full path to the .ids file to be created. If omitted, the add-on will generate a default name.
 
     Returns:
-      - JSON (str) with the handler result: {"ok": bool, "output_path": "...", "message": "..."} 
+      - JSON (str) with the handler result: {"ok": bool, "output_path": "...", "message": "..."}
         or {"ok": False, "error": "..."}
     """
 
@@ -1008,17 +1073,28 @@ def generate_ids(
             specs = json.loads(specs)
         except Exception as e:
             return json.dumps(
-                {"ok": False, "error": "Argument 'specs' is not a valid JSON", "details": str(e)},
-                ensure_ascii=False, indent=2
+                {
+                    "ok": False,
+                    "error": "Argument 'specs' is not a valid JSON",
+                    "details": str(e),
+                },
+                ensure_ascii=False,
+                indent=2,
             )
 
     # Basic validations to avoid sending garbage to the add-on
     if not isinstance(title, str) or not title.strip():
-        return json.dumps({"ok": False, "error": "Empty or invalid 'title' parameter."},
-                          ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"ok": False, "error": "Empty or invalid 'title' parameter."},
+            ensure_ascii=False,
+            indent=2,
+        )
     if not isinstance(specs, list) or not specs:
-        return json.dumps({"ok": False, "error": "You must provide at least one 'spec' in 'specs'."},
-                          ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"ok": False, "error": "You must provide at least one 'spec' in 'specs'."},
+            ensure_ascii=False,
+            indent=2,
+        )
 
     # Safe coercion of ids_version to str
     if ids_version is not None and not isinstance(ids_version, str):
@@ -1029,7 +1105,7 @@ def generate_ids(
         "specs": specs,
         "description": description,
         "author": author,
-        "ids_version": ids_version,   # ← the handler maps it to the 'version' field of the IDS
+        "ids_version": ids_version,  # ← the handler maps it to the 'version' field of the IDS
         "date_iso": date_iso,
         "output_path": output_path,
         "purpose": purpose,
@@ -1042,11 +1118,14 @@ def generate_ids(
     try:
         # Assignment name must match EXACTLY the one in addon.py
         result = blender.send_command("generate_ids", params)
-        # Returns JSON 
+        # Returns JSON
         return json.dumps(result, ensure_ascii=False, indent=2)
     except Exception as e:
-        return json.dumps({"ok": False, "error": "Fallo al crear IDS", "details": str(e)},
-                          ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"ok": False, "error": "Fallo al crear IDS", "details": str(e)},
+            ensure_ascii=False,
+            indent=2,
+        )
 
 
 # -------------------------------
@@ -1056,12 +1135,13 @@ def generate_ids(
 # Base path of the resource files
 BASE_PATH = Path("./resources")
 
+
 @mcp.resource("file://table_of_contents.json")
 def formulas_rp() -> str:
     """Read the content of table_of_contents.json file"""
     file_path = BASE_PATH / "table_of_contents.json"
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return f"Error: File not found {file_path}"
@@ -1073,63 +1153,68 @@ def formulas_rp() -> str:
 # MCP PROMPTS
 # -------------------------------
 
+
 @mcp.prompt("Technical_building_report")
-def technical_building_report(project_name: str, project_location: str, language: str = "english") -> str:
+def technical_building_report(
+    project_name: str, project_location: str, language: str = "english"
+) -> str:
     """
     Generate a comprehensive technical building report based on an IFC model loaded in Blender.
-    
+
     Args:
         project_name: Name of the project/building
         project_location: Building location (city, address)
         language: Report language - "english", "spanish", "french", "german", "italian", "portuguese"
-    
+
     Returns:
         Structured technical report following basic project standards in the selected language.
     """
-    
+
     # Language-specific instructions
     language_instructions = {
         "english": {
             "role": "You are a technical architect specialized in creating technical reports for basic building projects.",
-            "objective": f"Your objective is to generate a comprehensive technical report for the building \"{project_name}\" located in \"{project_location}\", using data from the IFC model loaded in Blender.",
+            "objective": f'Your objective is to generate a comprehensive technical report for the building "{project_name}" located in "{project_location}", using data from the IFC model loaded in Blender.',
             "workflow_title": "## MANDATORY WORKFLOW:",
-            "report_language": "Write the entire report in English."
+            "report_language": "Write the entire report in English.",
         },
         "spanish": {
             "role": "Eres un arquitecto técnico especializado en la creación de memorias técnicas de proyectos básicos de edificación.",
-            "objective": f"Tu objetivo es generar una memoria técnica completa del edificio \"{project_name}\" localizado en \"{project_location}\", utilizando los datos del modelo IFC cargado en Blender.",
+            "objective": f'Tu objetivo es generar una memoria técnica completa del edificio "{project_name}" localizado en "{project_location}", utilizando los datos del modelo IFC cargado en Blender.',
             "workflow_title": "## FLUJO DE TRABAJO OBLIGATORIO:",
-            "report_language": "Redacta todo el informe en español."
+            "report_language": "Redacta todo el informe en español.",
         },
         "french": {
             "role": "Vous êtes un architecte technique spécialisé dans la création de rapports techniques pour les projets de bâtiment de base.",
-            "objective": f"Votre objectif est de générer un rapport technique complet pour le bâtiment \"{project_name}\" situé à \"{project_location}\", en utilisant les données du modèle IFC chargé dans Blender.",
+            "objective": f'Votre objectif est de générer un rapport technique complet pour le bâtiment "{project_name}" situé à "{project_location}", en utilisant les données du modèle IFC chargé dans Blender.',
             "workflow_title": "## FLUX DE TRAVAIL OBLIGATOIRE:",
-            "report_language": "Rédigez tout le rapport en français."
+            "report_language": "Rédigez tout le rapport en français.",
         },
         "german": {
             "role": "Sie sind ein technischer Architekt, der sich auf die Erstellung technischer Berichte für grundlegende Bauprojekte spezialisiert hat.",
-            "objective": f"Ihr Ziel ist es, einen umfassenden technischen Bericht für das Gebäude \"{project_name}\" in \"{project_location}\" zu erstellen, unter Verwendung der Daten aus dem in Blender geladenen IFC-Modell.",
+            "objective": f'Ihr Ziel ist es, einen umfassenden technischen Bericht für das Gebäude "{project_name}" in "{project_location}" zu erstellen, unter Verwendung der Daten aus dem in Blender geladenen IFC-Modell.',
             "workflow_title": "## OBLIGATORISCHER ARBEITSABLAUF:",
-            "report_language": "Verfassen Sie den gesamten Bericht auf Deutsch."
+            "report_language": "Verfassen Sie den gesamten Bericht auf Deutsch.",
         },
         "italian": {
             "role": "Sei un architetto tecnico specializzato nella creazione di relazioni tecniche per progetti edilizi di base.",
-            "objective": f"Il tuo obiettivo è generare una relazione tecnica completa per l'edificio \"{project_name}\" situato a \"{project_location}\", utilizzando i dati del modello IFC caricato in Blender.",
+            "objective": f'Il tuo obiettivo è generare una relazione tecnica completa per l\'edificio "{project_name}" situato a "{project_location}", utilizzando i dati del modello IFC caricato in Blender.',
             "workflow_title": "## FLUSSO DI LAVORO OBBLIGATORIO:",
-            "report_language": "Scrivi tutto il rapporto in italiano."
+            "report_language": "Scrivi tutto il rapporto in italiano.",
         },
         "portuguese": {
             "role": "Você é um arquiteto técnico especializado na criação de relatórios técnicos para projetos básicos de construção.",
-            "objective": f"Seu objetivo é gerar um relatório técnico abrangente para o edifício \"{project_name}\" localizado em \"{project_location}\", usando dados do modelo IFC carregado no Blender.",
+            "objective": f'Seu objetivo é gerar um relatório técnico abrangente para o edifício "{project_name}" localizado em "{project_location}", usando dados do modelo IFC carregado no Blender.',
             "workflow_title": "## FLUXO DE TRABALHO OBRIGATÓRIO:",
-            "report_language": "Escreva todo o relatório em português."
-        }
+            "report_language": "Escreva todo o relatório em português.",
+        },
     }
-    
+
     # Get language instructions (default to English if language not supported)
-    lang_config = language_instructions.get(language.lower(), language_instructions["english"])
-    
+    lang_config = language_instructions.get(
+        language.lower(), language_instructions["english"]
+    )
+
     return f"""
 {lang_config["role"]} {lang_config["objective"]}
 
@@ -1244,9 +1329,11 @@ Proceed to generate the technical report following this detailed workflow.
 
 # Main execution
 
+
 def main():
     """Run the MCP server"""
     mcp.run()
+
 
 if __name__ == "__main__":
     main()

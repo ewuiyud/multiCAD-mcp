@@ -188,7 +188,7 @@ class ConfigManager:
 
     def ensure_output_directory(self) -> Path:
         """Ensure output directory exists, create if needed."""
-        output_dir = Path(self.config.output.directory)
+        output_dir = Path(self.config.output.directory).expanduser().resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
 

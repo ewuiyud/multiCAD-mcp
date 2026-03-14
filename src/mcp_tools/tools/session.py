@@ -15,8 +15,7 @@ from typing import Optional, Dict, Any, Callable, List, Tuple
 
 
 from core import get_supported_cads, CADConnectionError
-from adapters import AutoCADAdapter
-from adapters.adapter_manager import get_cad_instances, get_adapter, set_active_cad_type
+from adapters.adapter_manager import get_cad_instances, get_adapter, shutdown_all, auto_detect_cad
 
 logger = logging.getLogger(__name__)
 
@@ -35,55 +34,32 @@ def _refresh_cache_safe():
 
 
 def _connect(spec: Dict[str, Any]) -> Dict[str, Any]:
-    cad_type = spec.get("cad_type", "autocad").lower()
-    cad_instances = get_cad_instances()
-
-    if cad_type in cad_instances and cad_instances[cad_type].is_connected():
-        set_active_cad_type(cad_type)
-        _refresh_cache_safe()
-        return {"success": True, "detail": f"Already connected to {cad_type}"}
-
     try:
-        adapter = AutoCADAdapter(cad_type)
-        adapter.connect()
-        cad_instances[cad_type] = adapter
-        set_active_cad_type(cad_type)
+        adapter = get_adapter(only_if_running=False)
+        from adapters.adapter_manager import get_active_cad_type
+        cad_type = get_active_cad_type()
         logger.info(f"Connected to {cad_type}")
         _refresh_cache_safe()
         return {"success": True, "detail": f"Connected to {cad_type}"}
-    except CADConnectionError:
-        raise
     except Exception as e:
-        raise CADConnectionError(cad_type, str(e))
+        return {"success": False, "detail": str(e)}
 
 
 def _disconnect(spec: Dict[str, Any]) -> Dict[str, Any]:
-    cad_type = spec.get("cad_type", "autocad").lower()
-    cad_instances = get_cad_instances()
-
-    if cad_type not in cad_instances:
-        return {"success": True, "detail": f"Not connected to {cad_type}"}
-
     try:
-        cad_instances[cad_type].disconnect()
-        del cad_instances[cad_type]
-        logger.info(f"Disconnected from {cad_type}")
-        return {"success": True, "detail": f"Disconnected from {cad_type}"}
+        shutdown_all()
+        _refresh_cache_safe()
+        return {"success": True, "detail": "Disconnected."}
     except Exception as e:
         logger.error(f"Disconnection error: {e}")
         return {"success": False, "detail": f"Error disconnecting: {e}"}
 
 
 def _status(spec: Dict[str, Any]) -> Dict[str, Any]:
-    cad_instances = get_cad_instances()
-    status = {}
-    for cad_type in get_supported_cads():
-        if cad_type in cad_instances:
-            is_connected = cad_instances[cad_type].is_connected()
-            status[cad_type] = "connected" if is_connected else "disconnected"
-        else:
-            status[cad_type] = "not initialized"
-    return {"success": True, "status": status}
+    instances = get_cad_instances()
+    if instances:
+        return {"success": True, "status": {k: "connected" for k in instances.keys()}}
+    return {"success": True, "status": {"all": "disconnected"}}
 
 
 def _list_supported(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -92,7 +68,7 @@ def _list_supported(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _zoom_extents(spec: Dict[str, Any]) -> Dict[str, Any]:
-    adapter = get_adapter(spec.get("cad_type"))
+    adapter = get_adapter()
     success = adapter.zoom_extents()
     return {
         "success": success,
@@ -101,7 +77,7 @@ def _zoom_extents(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _undo(spec: Dict[str, Any]) -> Dict[str, Any]:
-    adapter = get_adapter(spec.get("cad_type"))
+    adapter = get_adapter()
     count = spec.get("count", 1)
     success = adapter.undo(count=count)
     if success:
@@ -112,7 +88,7 @@ def _undo(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _redo(spec: Dict[str, Any]) -> Dict[str, Any]:
-    adapter = get_adapter(spec.get("cad_type"))
+    adapter = get_adapter()
     count = spec.get("count", 1)
     success = adapter.redo(count=count)
     if success:
@@ -124,7 +100,7 @@ def _redo(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 def _screenshot(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Capture window screenshot including UI chrome."""
-    adapter = get_adapter(spec.get("cad_type"))
+    adapter = get_adapter()
     try:
         result = adapter.get_screenshot()
         return {
@@ -139,7 +115,7 @@ def _screenshot(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 def _export_view(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Export view using internal rendering (no UI, works when obscured)."""
-    adapter = get_adapter(spec.get("cad_type"))
+    adapter = get_adapter()
     try:
         result = adapter.export_view()
         return {
@@ -152,8 +128,29 @@ def _export_view(spec: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "detail": str(e)}
 
 
+def _check_running(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Check if any supported CAD is running without launching it."""
+    auto_detect_cad(only_if_running=True)
+    instances = get_cad_instances()
+    
+    if instances:
+        _refresh_cache_safe()
+        return {
+            "success": True,
+            "any_running": True,
+            "running_cad_types": list(instances.keys())
+        }
+    
+    return {
+        "success": True,
+        "any_running": False,
+        "running_cad_types": []
+    }
+
+
 def _open_dashboard(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Open the web dashboard in the default browser."""
+    import webbrowser
     host = spec.get("host", "127.0.0.1")
     port = spec.get("port", 8000)
     url = f"http://{host}:{port}"
@@ -170,6 +167,7 @@ SESSION_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
     "disconnect": (_disconnect, []),
     "status": (_status, []),
     "list_supported": (_list_supported, []),
+    "check_running": (_check_running, []),
     "zoom_extents": (_zoom_extents, []),
     "undo": (_undo, []),
     "redo": (_redo, []),
@@ -208,26 +206,27 @@ def register_session_tools(mcp):
                 Supported actions and their fields:
 
                 Connection:
-                - connect:        [cad_type] (default: "autocad")
-                - disconnect:     [cad_type]
-                - status:         (no fields) — shows connection status for all CAD types
+                - connect:        (no fields) — launches and connects to auto-detected CAD
+                - disconnect:     (no fields) — disconnects from CAD
+                - status:         (no fields) — shows connection status
                 - list_supported: (no fields) — lists available CAD applications
+                - check_running:  (no fields) — checks for running CAD without launching
 
                 View:
-                - zoom_extents:   [cad_type] — zoom to show all entities
-                - screenshot:     [cad_type] — capture window screenshot (includes UI chrome)
-                - export_view:    [cad_type] — export view using internal rendering (pure drawing, works when window is obscured)
+                - zoom_extents:   (no fields) — zoom to show all entities
+                - screenshot:     (no fields) — capture window screenshot (includes UI chrome)
+                - export_view:    (no fields) — export view using internal rendering (pure drawing, works when window is obscured)
 
                 History:
-                - undo:           [count, cad_type] (default count: 1)
-                - redo:           [count, cad_type] (default count: 1)
+                - undo:           [count] (default count: 1)
+                - redo:           [count] (default count: 1)
 
                 Dashboard:
                 - open_dashboard: [host, port] — open web dashboard in browser (default: 127.0.0.1:8000)
 
                 Example:
                 [
-                    {"action": "connect", "cad_type": "autocad"},
+                    {"action": "connect"},
                     {"action": "zoom_extents"},
                     {"action": "undo", "count": 3}
                 ]

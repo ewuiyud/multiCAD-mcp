@@ -664,7 +664,7 @@ class DrawingMixin:
 
                     full_cmd = " ".join(cmd_parts)
                     logger.info(
-                        f"Adding {len(leader_groups)-1} extra arrows via command: {full_cmd}"
+                        f"Adding {len(leader_groups) - 1} extra arrows via command: {full_cmd}"
                     )
 
                     self.document.SendCommand(full_cmd)

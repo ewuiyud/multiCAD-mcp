@@ -5,10 +5,12 @@ Single manage_blocks tool replaces all 7 legacy block tools with
 a simple shorthand format for ~85% token reduction.
 
 SHORTHAND FORMAT (one per line):
-    list                                      → list
-    info|block_name|include                   → info|Door|both
-    insert|name|point|scale|rotation|layer    → insert|Door|10,20|1.5|90|walls
-    create|name|handles|point|description     → create|MyBlock|A1,B2|0,0|Desc
+    list                                          → list
+    info|block_name|include                       → info|Door|both
+    insert|name|point|scale|rotation|layer|color  → insert|Door|10,20|1.5|90|walls|red
+    create|name|handles|point|description         → create|MyBlock|A1,B2|0,0|Desc
+    get_attrs|handle                              → get_attrs|A1B2C3
+    set_attrs|handle|attributes_json              → set_attrs|A1B2C3|{"TAG": "value"}
 """
 
 import json
@@ -63,6 +65,15 @@ def _insert(spec: Dict[str, Any]) -> Dict[str, Any]:
     scale = spec.get("scale", 1.0)
     rotation = spec.get("rotation", 0.0)
     layer = spec.get("layer", "0")
+    color = spec.get("color", "white")
+    attributes = spec.get("attributes")
+
+    # Parse attributes if passed as JSON string
+    if isinstance(attributes, str):
+        try:
+            attributes = json.loads(attributes)
+        except json.JSONDecodeError:
+            attributes = None
 
     handle = adapter.insert_block(
         block_name=block_name,
@@ -72,6 +83,8 @@ def _insert(spec: Dict[str, Any]) -> Dict[str, Any]:
         scale_z=scale,
         rotation=rotation,
         layer=layer,
+        color=color,
+        attributes=attributes,
         _skip_refresh=True,
     )
 
@@ -126,12 +139,47 @@ def _info(spec: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _get_attrs(spec: Dict[str, Any]) -> Dict[str, Any]:
+    adapter = get_current_adapter()
+    handle = spec["handle"]
+    attributes = adapter.get_block_attributes(handle)
+    return {
+        "success": True,
+        "handle": handle,
+        "attribute_count": len(attributes),
+        "attributes": attributes,
+    }
+
+
+def _set_attrs(spec: Dict[str, Any]) -> Dict[str, Any]:
+    adapter = get_current_adapter()
+    handle = spec["handle"]
+    attrs_raw = spec["attributes"]
+
+    if isinstance(attrs_raw, str):
+        try:
+            attrs_data = json.loads(attrs_raw)
+        except json.JSONDecodeError as e:
+            return {"success": False, "error": f"Invalid JSON for attributes: {e}"}
+    else:
+        attrs_data = attrs_raw
+
+    success = adapter.set_block_attributes(handle, attrs_data)
+    return {
+        "success": success,
+        "handle": handle,
+        "attributes_set": list(attrs_data.keys()) if success else [],
+    }
+
+
 # Dispatch table: action -> (handler, required_fields)
 BLOCK_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
     "create": (_create, ["block_name"]),
     "insert": (_insert, ["block_name", "insertion_point"]),
     "list": (_list, []),
     "info": (_info, ["block_name"]),
+    "get_attrs": (_get_attrs, ["handle"]),
+    "set_attrs": (_set_attrs, ["handle", "attributes"]),
 }
 
 
@@ -155,30 +203,33 @@ def register_block_tools(mcp) -> None:
         operations: str,
     ) -> str:
         """
-        Manage blocks: create, insert, list, or query block information.
+        Manage blocks: create, insert, list, query, and manage attributes.
 
         Args:
             operations: Operations in SHORTHAND format (one per line):
 
-                list                                      → list
-                info|block_name|include                   → info|Door|both
-                insert|name|point|scale|rotation|layer    → insert|Door|10,20|1.5|90|walls
-                create|name|handles|point|description     → create|MyBlock|A1,B2|0,0|Desc
+                list                                          → list
+                info|block_name|include                       → info|Door|both
+                insert|name|point|scale|rotation|layer|color  → insert|Door|10,20|1.5|90|walls|red
+                create|name|handles|point|description         → create|MyBlock|A1,B2|0,0|Desc
+                get_attrs|handle                              → get_attrs|A1B2C3
+                set_attrs|handle|attributes_json              → set_attrs|A1B2C3|{"TAG": "value"}
 
                 "include" = "info" (default), "references", or "both"
                 "handles" = comma-separated entity handles
+                "attributes_json" = JSON object with attribute tag -> value pairs
 
-                DEFAULTS: scale=1.0, rotation=0, layer=0, include=info
+                DEFAULTS: scale=1.0, rotation=0, layer=0, color=white, include=info
 
-                Example:
+                Examples:
                     list
                     info|Door|both
                     insert|Door|10,20|1.5|90
-                    insert|Door|30,20|1.0|0
+                    insert|Door|30,20|1.0|0|walls|blue
+                    get_attrs|A1B2C3
+                    set_attrs|A1B2C3|{"INTENSIDAD": "25A", "POLOS": "4P"}
 
                 JSON format also supported for backwards compatibility.
-
-
 
         Returns:
             JSON result with per-operation status

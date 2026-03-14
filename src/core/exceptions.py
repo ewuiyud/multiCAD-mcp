@@ -75,8 +75,7 @@ class CADNotSupportedError(MultiCADError):
         self.cad_type = cad_type
         self.supported = supported
         super().__init__(
-            f"CAD type '{cad_type}' is not supported. "
-            f"Supported: {', '.join(supported)}"
+            f"CAD type '{cad_type}' is not supported. Supported: {', '.join(supported)}"
         )
 
 

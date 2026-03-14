@@ -1,0 +1,17 @@
+fastmcp>=2.14.0
+mcp>=1.24.0
+pywin32>=300
+openpyxl>=3.1.0
+pillow>=10.0.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+typing-extensions>=4.5.0
+
+[dev]
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.20.0
+mypy>=1.0.0
+ruff>=0.1.0

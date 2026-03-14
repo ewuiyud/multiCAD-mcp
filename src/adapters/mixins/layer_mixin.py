@@ -135,49 +135,79 @@ class LayerMixin:
                     layer_name = entity.get("Layer", "0")
                     layer_counts[layer_name] = layer_counts.get(layer_name, 0) + 1
             else:
-                # Fallback: iterate ModelSpace (slower - requires COM calls)
-                logger.debug("Iterating ModelSpace to count entities by layer")
-                model_space = document.ModelSpace
-
-                try:
-                    # Direct iteration (faster than Item(i))
-                    for entity in model_space:
-                        try:
-                            layer_name = self._fast_get_property(entity, "Layer", "0")
-                            layer_counts[layer_name] = (
-                                layer_counts.get(layer_name, 0) + 1
-                            )
-                        except Exception:
-                            pass
-                except Exception:
-                    # Fallback to indexed iteration if direct iteration fails
+                # Fallback: Use SelectionSets to quickly count entities per layer (O(K))
+                logger.debug("Using SelectionSets to count entities by layer")
+                import pythoncom
+                import win32com.client
+                import time
+                
+                perf_start = time.perf_counter()
+                
+                # Setup selection set manager helper
+                from contextlib import contextmanager
+                @contextmanager
+                def _temp_ss(doc, name):
                     try:
-                        entity_count = model_space.Count
-                        for i in range(entity_count):
-                            try:
-                                entity = model_space.Item(i)
-                                layer_name = self._fast_get_property(
-                                    entity, "Layer", "0"
-                                )
-                                layer_counts[layer_name] = (
-                                    layer_counts.get(layer_name, 0) + 1
-                                )
-                            except Exception:
-                                pass
-                    except Exception as e:
-                        logger.debug(f"Failed to count entities by layer: {e}")
+                        doc.SelectionSets.Item(name).Delete()
+                    except:
+                        pass
+                    ss = doc.SelectionSets.Add(name)
+                    try:
+                        yield ss
+                    finally:
+                        try:
+                            ss.Delete()
+                        except:
+                            pass
+                
+                def to_variant_array(types, values):
+                    return win32com.client.VARIANT(types, values)
+                    
+                ft = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_I2, [8]) # DXF Code 8: Layer Name
+                
+                with _temp_ss(document, "MCP_LAYER_COUNTS") as ss:
+                    for layer in document.Layers:
+                        lname = layer.Name
+                        fd = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, [lname])
+                        try:
+                            ss.Clear()
+                            ss.Select(5, None, None, ft, fd) # 5 = acSelectionSetAll
+                            count = ss.Count
+                            if count > 0:
+                                layer_counts[lname] = count
+                        except Exception as e:
+                            logger.debug(f"Failed to count entities on layer {lname}: {e}")
+                
+                elapsed = time.perf_counter() - perf_start
+                logger.info(f"[PERF] Layer counting via SelectionSets took {elapsed:.3f}s")
 
             # Build layer information
             for layer in document.Layers:
                 try:
-                    # Get layer properties
-                    layer_color = self._safe_get_property(layer, "Color", 256)
+                    # Get layer properties using dynamic dispatch for robustness
+                    import win32com.client
+                    dyn_layer = win32com.client.dynamic.Dispatch(layer)
+                    
+                    layer_color_val = 7 # Default white
+                    try:
+                        # Try TrueColor first for modern CAD compatibility
+                        if hasattr(dyn_layer, "TrueColor"):
+                            tc = dyn_layer.TrueColor
+                            layer_color_val = int(getattr(tc, "ColorIndex", 7))
+                        else:
+                            layer_color_val = int(getattr(dyn_layer, "Color", 7))
+                    except (TypeError, ValueError, AttributeError):
+                        layer_color_val = 7
+                    
+                    # Convert to name if possible, or keep as string numeric
                     color_map_reverse = {v: k for k, v in COLOR_MAP.items()}
-                    color_name = color_map_reverse.get(layer_color, str(layer_color))
+                    color_name = color_map_reverse.get(layer_color_val, str(layer_color_val))
+
+                    logger.info(f"Layer '{layer.Name}' extracted color: {layer_color_val} ({color_name})")
 
                     layer_info = {
-                        "Name": str(layer.Name),
-                        "ObjectCount": layer_counts.get(str(layer.Name), 0),
+                        "Name": str(layer.Name).strip(),
+                        "ObjectCount": layer_counts.get(str(layer.Name).strip(), 0),
                         "Color": color_name,
                         "Linetype": str(
                             self._safe_get_property(layer, "Linetype", "Continuous")
@@ -186,7 +216,7 @@ class LayerMixin:
                             self._safe_get_property(layer, "Lineweight", "Default")
                         ),
                         "IsLocked": bool(self._safe_get_property(layer, "Lock", False)),
-                        "IsVisible": not bool(
+                        "IsVisible": bool(self._safe_get_property(layer, "LayerOn", True)) and not bool(
                             self._safe_get_property(layer, "Frozen", False)
                         ),
                     }

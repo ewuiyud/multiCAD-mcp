@@ -105,7 +105,6 @@ def insert_blocks_batch(adapter, blocks: List[Dict[str, Any]]) -> Dict[str, Any]
     fail_count = 0
 
     for i, b in enumerate(blocks):
-
         try:
             point = parse_coordinate(b["insertion_point"])
 

@@ -6,7 +6,7 @@ from collections import defaultdict
 
 
 # Base path for BC3 helper files
-BASE_PATH = Path(__file__).parent / 'resources' / 'bc3_helper_files'
+BASE_PATH = Path(__file__).parent / "resources" / "bc3_helper_files"
 
 
 class IFC2BC3Converter:
@@ -31,11 +31,22 @@ class IFC2BC3Converter:
     """
 
     # Class constants
-    SPATIAL_TYPES = {'IfcProject', 'IfcSite', 'IfcBuilding', 'IfcBuildingStorey', 'IfcBridge', 'IfcBridgePart'}
-    IGNORED_TYPES = {'IfcSpace', 'IfcAnnotation', 'IfcGrid', 'IfcAxis'}
+    SPATIAL_TYPES = {
+        "IfcProject",
+        "IfcSite",
+        "IfcBuilding",
+        "IfcBuildingStorey",
+        "IfcBridge",
+        "IfcBridgePart",
+    }
+    IGNORED_TYPES = {"IfcSpace", "IfcAnnotation", "IfcGrid", "IfcAxis"}
 
-    def __init__(self, structure_data: Union[str, Dict], quantities_data: Union[str, Dict],
-                 language: str = 'es'):
+    def __init__(
+        self,
+        structure_data: Union[str, Dict],
+        quantities_data: Union[str, Dict],
+        language: str = "es",
+    ):
         """
         Initializes the converter with input data.
 
@@ -87,7 +98,9 @@ class IFC2BC3Converter:
         Returns:
             Dict with ifc_class as key and dict {code, description, long_description, unit, price} as value
         """
-        filename = 'precios_unitarios.json' if self.language == 'es' else 'unit_prices.json'
+        filename = (
+            "precios_unitarios.json" if self.language == "es" else "unit_prices.json"
+        )
         prices_path = BASE_PATH / filename
 
         if not prices_path.exists():
@@ -95,18 +108,18 @@ class IFC2BC3Converter:
             return {}
 
         try:
-            with open(prices_path, 'r', encoding='utf-8') as f:
+            with open(prices_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Dict comprehension is faster than loop + assignment
                 return {
-                    item['ifc_class']: {
-                        'code': item['code'],
-                        'description': item['description'],
-                        'long_description': item['long_description'],
-                        'unit': item['unit'],
-                        'price': item['unit_price']
+                    item["ifc_class"]: {
+                        "code": item["code"],
+                        "description": item["description"],
+                        "long_description": item["long_description"],
+                        "unit": item["unit"],
+                        "price": item["unit_price"],
                     }
-                    for item in data.get('prices', [])
+                    for item in data.get("prices", [])
                 }
         except Exception as e:
             print(f"Error loading unit prices: {e}")
@@ -119,7 +132,7 @@ class IFC2BC3Converter:
         Returns:
             Dict with IFC type as key and translated label as value
         """
-        filename = f'spatial_labels_{self.language}.json'
+        filename = f"spatial_labels_{self.language}.json"
         labels_path = BASE_PATH / filename
 
         if not Path(labels_path).exists():
@@ -127,9 +140,9 @@ class IFC2BC3Converter:
             return {}
 
         try:
-            with open(labels_path, 'r', encoding='utf-8') as f:
+            with open(labels_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data.get('spatial_labels', {})
+                return data.get("spatial_labels", {})
         except Exception as e:
             print(f"Error loading spatial labels: {e}")
             return {}
@@ -141,19 +154,21 @@ class IFC2BC3Converter:
         Returns:
             Dict with category code as key and set of IFC types as value
         """
-        categories_path = BASE_PATH / 'element_categories.json'
+        categories_path = BASE_PATH / "element_categories.json"
 
         if not Path(categories_path).exists():
             print(f"Warning: Element categories file not found at {categories_path}")
             return {}
 
         try:
-            with open(categories_path, 'r', encoding='utf-8') as f:
+            with open(categories_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Convert lists to sets for O(1) membership testing
                 return {
                     category: set(ifc_types)
-                    for category, ifc_types in data.get('element_categories', {}).items()
+                    for category, ifc_types in data.get(
+                        "element_categories", {}
+                    ).items()
                 }
         except Exception as e:
             print(f"Error loading element categories: {e}")
@@ -180,8 +195,8 @@ class IFC2BC3Converter:
 
     def _index_quantities(self) -> Dict[str, Dict]:
         """Indexes quantities by element ID for O(1) access."""
-        elements = self.quantities_data.get('elements', [])
-        return {elem['id']: elem for elem in elements}
+        elements = self.quantities_data.get("elements", [])
+        return {elem["id"]: elem for elem in elements}
 
     # ============================================================================
     # 3. CODE GENERATION & FORMATTING
@@ -189,17 +204,17 @@ class IFC2BC3Converter:
     # Methods that generate hierarchical codes, format positions, and escape
     # text for BC3 format compliance.
 
-    def _generate_chapter_code(self, parent_code: str = '') -> str:
+    def _generate_chapter_code(self, parent_code: str = "") -> str:
         """Generates a hierarchical chapter code."""
         # Root level uses sequential numbering: 01#, 02#, 03#...
-        if parent_code == 'R_A_I_Z##':
-            self.chapter_counters['root'] += 1
-            return f'{self.chapter_counters["root"]:02d}#'
+        if parent_code == "R_A_I_Z##":
+            self.chapter_counters["root"] += 1
+            return f"{self.chapter_counters['root']:02d}#"
 
         # Sub-levels use hierarchical notation: 01.01#, 01.01.01#...
-        base_code = parent_code.rstrip('#')
+        base_code = parent_code.rstrip("#")
         self.chapter_counters[base_code] += 1
-        return f'{base_code}.{self.chapter_counters[base_code]:02d}#'
+        return f"{base_code}.{self.chapter_counters[base_code]:02d}#"
 
     def _generate_item_code(self, category: str, chapter_code: str = None) -> str:
         """Generates a unique code for a budget item globally (not per chapter)."""
@@ -215,10 +230,10 @@ class IFC2BC3Converter:
         if chapter_code in self._position_cache:
             return self._position_cache[chapter_code]
 
-        clean_code = chapter_code.rstrip('#')
-        parts = clean_code.split('.')
+        clean_code = chapter_code.rstrip("#")
+        parts = clean_code.split(".")
         position_parts = [str(int(part)) for part in parts]
-        result = '\\'.join(position_parts)
+        result = "\\".join(position_parts)
 
         self._position_cache[chapter_code] = result
         return result
@@ -227,11 +242,13 @@ class IFC2BC3Converter:
     def _escape_bc3_text(text: str) -> str:
         """Escapes special characters for BC3 format."""
         if not text:
-            return ''
+            return ""
         # Normalize and clean whitespace
-        text = str(text).strip().replace('\r', ' ').replace('\n', ' ').replace('\t', ' ')
+        text = (
+            str(text).strip().replace("\r", " ").replace("\n", " ").replace("\t", " ")
+        )
         # Escape BC3 special characters
-        return text.replace('|', ' ').replace('~', '-')
+        return text.replace("|", " ").replace("~", "-")
 
     # ============================================================================
     # 4. IFC ELEMENT CLASSIFICATION
@@ -241,7 +258,7 @@ class IFC2BC3Converter:
 
     def _get_category_code(self, ifc_type: str) -> str:
         """Gets category code for an IFC type (O(1) lookup)."""
-        return self._ifc_to_category.get(ifc_type, 'OTROS')
+        return self._ifc_to_category.get(ifc_type, "OTROS")
 
     def _get_spatial_element_label(self, ifc_type: str) -> str:
         """Gets translated label for spatial elements from loaded JSON."""
@@ -261,8 +278,8 @@ class IFC2BC3Converter:
         """Groups elements by IFC type, ignoring invalid types."""
         groups = defaultdict(list)
         for elem in elements:
-            if not self._is_ignored_element(elem['type']):
-                groups[elem['type']].append(elem)
+            if not self._is_ignored_element(elem["type"]):
+                groups[elem["type"]].append(elem)
         return groups
 
     def _is_unit_based_element(self, ifc_type: str) -> bool:
@@ -271,10 +288,15 @@ class IFC2BC3Converter:
         Unit-based elements: doors, windows, furniture, stairs, railings, fittings, terminals.
         """
         unit_based_types = {
-            'IfcDoor', 'IfcWindow',  # CARP - Carpentry
-            'IfcFurnishingElement', 'IfcFurniture',  # MOB - Furniture
-            'IfcStair',  # ESTR - Stairs (counted as units)
-            'IfcFlowFitting', 'IfcFlowTerminal', 'IfcDistributionElement', 'IfcRailing'  # INST - Installations
+            "IfcDoor",
+            "IfcWindow",  # CARP - Carpentry
+            "IfcFurnishingElement",
+            "IfcFurniture",  # MOB - Furniture
+            "IfcStair",  # ESTR - Stairs (counted as units)
+            "IfcFlowFitting",
+            "IfcFlowTerminal",
+            "IfcDistributionElement",
+            "IfcRailing",  # INST - Installations
         }
         return ifc_type in unit_based_types
 
@@ -284,9 +306,9 @@ class IFC2BC3Converter:
         Linear elements: beams, columns, piles.
         """
         linear_types = {
-            'IfcBeam',  # ESTR - Beams
-            'IfcColumn',  # ESTR - Columns
-            'IfcPile'  # ESTR - Piles
+            "IfcBeam",  # ESTR - Beams
+            "IfcColumn",  # ESTR - Columns
+            "IfcPile",  # ESTR - Piles
         }
         return ifc_type in linear_types
 
@@ -298,10 +320,12 @@ class IFC2BC3Converter:
 
     def _get_quantities_for_element(self, element_id: str) -> Dict[str, float]:
         """Gets quantities for an element."""
-        return self.quantities_by_id.get(element_id, {}).get('quantities', {})
+        return self.quantities_by_id.get(element_id, {}).get("quantities", {})
 
     @staticmethod
-    def _get_measurement_dimensions(quantities: Dict[str, float], ifc_type: str = None) -> tuple:
+    def _get_measurement_dimensions(
+        quantities: Dict[str, float], ifc_type: str = None
+    ) -> tuple:
         """
         Extracts dimensions from quantities based on element type.
         - Walls (IfcWall*): Use NetSideArea (accounts for doors/windows)
@@ -313,30 +337,30 @@ class IFC2BC3Converter:
             return (1.0, 0.0, 0.0, 0.0)
 
         # Walls: ONLY use NetSideArea (lateral area without openings)
-        if ifc_type and ifc_type.startswith('IfcWall'):
-            net_side_area = quantities.get('NetSideArea', 0.0)
+        if ifc_type and ifc_type.startswith("IfcWall"):
+            net_side_area = quantities.get("NetSideArea", 0.0)
             # Force return NetSideArea for walls, even if 0
             return (1.0, net_side_area, 0.0, 0.0)
 
         # Slabs and Roofs: ONLY use GrossVolume
-        if ifc_type in ('IfcSlab', 'IfcRoof'):
-            gross_volume = quantities.get('GrossVolume', 0.0)
+        if ifc_type in ("IfcSlab", "IfcRoof"):
+            gross_volume = quantities.get("GrossVolume", 0.0)
             # Force return GrossVolume for slabs/roofs, even if 0
             return (1.0, gross_volume, 0.0, 0.0)
 
         # Priority 1: Use NetVolume (accounts for openings and voids)
-        net_volume = quantities.get('NetVolume', 0.0)
+        net_volume = quantities.get("NetVolume", 0.0)
         if net_volume > 0:
             return (1.0, net_volume, 0.0, 0.0)
 
         # Priority 2: Use NetSideArea as fallback
-        net_side_area = quantities.get('NetSideArea', 0.0)
+        net_side_area = quantities.get("NetSideArea", 0.0)
         if net_side_area > 0:
             return (1.0, net_side_area, 0.0, 0.0)
 
         # Priority 3: Use GrossVolume or GrossSideArea as fallback
-        gross_volume = quantities.get('GrossVolume', 0.0)
-        gross_side_area = quantities.get('GrossSideArea', 0.0)
+        gross_volume = quantities.get("GrossVolume", 0.0)
+        gross_side_area = quantities.get("GrossSideArea", 0.0)
 
         if gross_volume > 0:
             return (1.0, gross_volume, 0.0, 0.0)
@@ -344,58 +368,68 @@ class IFC2BC3Converter:
             return (1.0, gross_side_area, 0.0, 0.0)
 
         # Priority 4: Use basic dimensions (for linear elements)
-        length = quantities.get('Length', 0.0)
-        width = quantities.get('Width', 0.0)
-        height = quantities.get('Height', 0.0)
+        length = quantities.get("Length", 0.0)
+        width = quantities.get("Width", 0.0)
+        height = quantities.get("Height", 0.0)
 
         return (1.0, length, width, height)
 
-    def _get_item_data(self, ifc_type: str, category: str, chapter_code: str) -> Dict[str, Any]:
+    def _get_item_data(
+        self, ifc_type: str, category: str, chapter_code: str
+    ) -> Dict[str, Any]:
         """Gets all necessary data to create a budget item."""
         price_data = self.unit_prices.get(ifc_type, {})
         return {
-            'code': price_data.get('code', self._generate_item_code(category, chapter_code)),
-            'description': price_data.get('description', ifc_type.replace('Ifc', '')),
-            'long_description': price_data.get('long_description', f"Item for {ifc_type}"),
-            'unit': price_data.get('unit', 'ud'),
-            'price': price_data.get('price', 100.0)
+            "code": price_data.get(
+                "code", self._generate_item_code(category, chapter_code)
+            ),
+            "description": price_data.get("description", ifc_type.replace("Ifc", "")),
+            "long_description": price_data.get(
+                "long_description", f"Item for {ifc_type}"
+            ),
+            "unit": price_data.get("unit", "ud"),
+            "price": price_data.get("price", 100.0),
         }
 
-    def _create_measurement_lines(self, elements: List[Dict], ifc_type: str) -> List[str]:
+    def _create_measurement_lines(
+        self, elements: List[Dict], ifc_type: str
+    ) -> List[str]:
         """Creates measurement lines for a list of elements, sorted alphabetically by name."""
         # Sort elements by name before processing (handle None values)
-        sorted_elements = sorted(elements, key=lambda e: e.get('name') or '')
+        sorted_elements = sorted(elements, key=lambda e: e.get("name") or "")
 
         measurement_lines = []
         for idx, elem in enumerate(sorted_elements, 1):
-            elem_name = self._escape_bc3_text(elem.get('name', f'Element {idx}'))
+            elem_name = self._escape_bc3_text(elem.get("name", f"Element {idx}"))
 
             # Elements measured by unit (doors, windows, furniture) don't need dimensions
             if self._is_unit_based_element(ifc_type):
                 line_parts = [elem_name, "1.000", "", "", ""]
             # Linear elements (beams, columns, piles) measured by length
             elif self._is_linear_element(ifc_type):
-                quantities = self._get_quantities_for_element(elem['id'])
-                length = quantities.get('Length', 0.0)
+                quantities = self._get_quantities_for_element(elem["id"])
+                length = quantities.get("Length", 0.0)
                 line_parts = [
                     elem_name,
                     "1.000",
                     f"{length:.2f}" if length > 0 else "",
                     "",
-                    ""
+                    "",
                 ]
             else:
-                quantities = self._get_quantities_for_element(elem['id'])
-                units, length, width, height = self._get_measurement_dimensions(quantities, ifc_type)
+                quantities = self._get_quantities_for_element(elem["id"])
+                units, length, width, height = self._get_measurement_dimensions(
+                    quantities, ifc_type
+                )
                 line_parts = [
                     elem_name,
                     f"{units:.3f}",
                     f"{length:.2f}" if length > 0 else "",
                     f"{width:.2f}" if width > 0 else "",
-                    f"{height:.2f}" if height > 0 else ""
+                    f"{height:.2f}" if height > 0 else "",
                 ]
 
-            measurement_lines.append('\\'.join(line_parts))
+            measurement_lines.append("\\".join(line_parts))
 
         return measurement_lines
 
@@ -408,10 +442,10 @@ class IFC2BC3Converter:
     @staticmethod
     def _create_bc3_header() -> List[str]:
         """Creates BC3 file header lines."""
-        date_code = datetime.now().strftime('%d%m%Y')
+        date_code = datetime.now().strftime("%d%m%Y")
         return [
-            f'~V||FIEBDC-3/2016\\{date_code}|IFC2BC3 Converter|\\|ANSI||',
-            '~K|3\\3\\3\\2\\2\\2\\2\\2\\|0\\0\\0\\0\\0\\|3\\2\\\\2\\2\\\\2\\2\\2\\3\\3\\3\\3\\2\\EUR\\|'
+            f"~V||FIEBDC-3/2016\\{date_code}|IFC2BC3 Converter|\\|ANSI||",
+            "~K|3\\3\\3\\2\\2\\2\\2\\2\\|0\\0\\0\\0\\0\\|3\\2\\\\2\\2\\\\2\\2\\2\\3\\3\\3\\3\\2\\EUR\\|",
         ]
 
     def _build_chapter_record(self, code: str, name: str) -> str:
@@ -420,10 +454,12 @@ class IFC2BC3Converter:
 
     def _build_decomposition_record(self, code: str, child_codes: List[str]) -> str:
         """Builds ~D decomposition record."""
-        children_str = '\\'.join([f"{c}\\\\1.000" for c in child_codes])
+        children_str = "\\".join([f"{c}\\\\1.000" for c in child_codes])
         return f"~D|{code}|{children_str}|"
 
-    def _build_item_record(self, code: str, unit: str, name: str, price: float, date: str) -> str:
+    def _build_item_record(
+        self, code: str, unit: str, name: str, price: float, date: str
+    ) -> str:
         """Builds ~C record for a budget item."""
         return f"~C|{code}|{unit}|{name}|{price:.2f}||{date}|"
 
@@ -431,8 +467,9 @@ class IFC2BC3Converter:
         """Builds ~T descriptive text record."""
         return f"~T|{code}|{description}|"
 
-    def _build_measurement_record(self, chapter_code: str, item_code: str,
-                                 position: str, measurement_content: str) -> str:
+    def _build_measurement_record(
+        self, chapter_code: str, item_code: str, position: str, measurement_content: str
+    ) -> str:
         """Builds ~M measurements record."""
         return f"~M|{chapter_code}\\{item_code}|{position}|0|\\{measurement_content}\\|"
 
@@ -442,16 +479,18 @@ class IFC2BC3Converter:
     # Methods that orchestrate the conversion process by processing spatial
     # structure and building elements recursively.
 
-    def _process_spatial_node(self, node: Dict, parent_code: str, lines: List[str], depth: int = 0) -> str:
+    def _process_spatial_node(
+        self, node: Dict, parent_code: str, lines: List[str], depth: int = 0
+    ) -> str:
         """Recursively processes a spatial node (chapter) from IFC structure."""
-        if self._is_ignored_element(node['type']):
+        if self._is_ignored_element(node["type"]):
             return None
 
         # Generate chapter code and name
-        code = 'R_A_I_Z##' if depth == 0 else self._generate_chapter_code(parent_code)
+        code = "R_A_I_Z##" if depth == 0 else self._generate_chapter_code(parent_code)
 
-        label = self._get_spatial_element_label(node['type'])
-        node_name = node.get('name', '')
+        label = self._get_spatial_element_label(node["type"])
+        node_name = node.get("name", "")
         full_name = f"{label} - {node_name}" if node_name else label
         name = self._escape_bc3_text(full_name)
 
@@ -461,14 +500,14 @@ class IFC2BC3Converter:
         decomposition_codes = []
 
         # Process building elements
-        building_elements = node.get('building_elements', [])
+        building_elements = node.get("building_elements", [])
         if building_elements:
             item_codes = self._process_building_elements(building_elements, code, lines)
             decomposition_codes.extend(item_codes)
 
         # Process spatial children recursively
-        for child in node.get('children', []):
-            if self._is_spatial_element(child['type']):
+        for child in node.get("children", []):
+            if self._is_spatial_element(child["type"]):
                 child_code = self._process_spatial_node(child, code, lines, depth + 1)
                 if child_code:
                     decomposition_codes.append(child_code)
@@ -479,13 +518,15 @@ class IFC2BC3Converter:
 
         return code
 
-    def _process_building_elements(self, elements: List[Dict], chapter_code: str, lines: List[str]) -> List[str]:
+    def _process_building_elements(
+        self, elements: List[Dict], chapter_code: str, lines: List[str]
+    ) -> List[str]:
         """
         Processes building elements and groups them by category.
         Optimized: Batch operations to reduce concatenation overhead.
         """
         created_items = []
-        chapter_key = chapter_code.rstrip('#')
+        chapter_key = chapter_code.rstrip("#")
 
         # Group elements by type
         elements_by_type = self._group_elements_by_type(elements)
@@ -507,33 +548,43 @@ class IFC2BC3Converter:
 
             # Get item data
             item_data = self._get_item_data(ifc_type, category, chapter_code)
-            item_code = item_data['code']
+            item_code = item_data["code"]
 
             # Register position
             position = len(self.item_positions[chapter_key]) + 1
             self.item_positions[chapter_key][item_code] = position
 
             # Escape texts (batch)
-            name = self._escape_bc3_text(item_data['description'])
-            long_desc = self._escape_bc3_text(item_data['long_description'])
+            name = self._escape_bc3_text(item_data["description"])
+            long_desc = self._escape_bc3_text(item_data["long_description"])
 
             batch_records = []
 
             # Only create ~C and ~T records if this concept hasn't been created globally
             if item_code not in self.created_concepts:
                 self.created_concepts.add(item_code)
-                batch_records.extend([
-                    self._build_item_record(item_code, item_data['unit'], name, item_data['price'], date_str),
-                    self._build_text_record(item_code, long_desc)
-                ])
+                batch_records.extend(
+                    [
+                        self._build_item_record(
+                            item_code,
+                            item_data["unit"],
+                            name,
+                            item_data["price"],
+                            date_str,
+                        ),
+                        self._build_text_record(item_code, long_desc),
+                    ]
+                )
 
             # Always create measurements for this chapter
             measurement_lines = self._create_measurement_lines(type_elements, ifc_type)
             full_position = f"{chapter_position}\\{position}"
-            measurement_content = '\\\\'.join(measurement_lines)
+            measurement_content = "\\\\".join(measurement_lines)
 
             batch_records.append(
-                self._build_measurement_record(chapter_code, item_code, full_position, measurement_content)
+                self._build_measurement_record(
+                    chapter_code, item_code, full_position, measurement_content
+                )
             )
 
             # Add batch at once (more efficient than 3 individual appends)
@@ -554,28 +605,32 @@ class IFC2BC3Converter:
 
         # Process structure from root
         # Try different possible root keys
-        root = self.structure_data.get('structure')
-        if not root and 'type' in self.structure_data:
+        root = self.structure_data.get("structure")
+        if not root and "type" in self.structure_data:
             # If structure_data itself is the root node
             root = self.structure_data
 
         if root:
-            self._process_spatial_node(root, '', lines, depth=0)
+            self._process_spatial_node(root, "", lines, depth=0)
         else:
-            print(f"Warning: No structure found. Keys available: {list(self.structure_data.keys())}")
+            print(
+                f"Warning: No structure found. Keys available: {list(self.structure_data.keys())}"
+            )
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
-    def export(self, output_filename: str = 'ifc2bc3.bc3'):
+    def export(self, output_filename: str = "ifc2bc3.bc3"):
         """Exports BC3 file to exports folder."""
         script_dir = Path(__file__).parent
-        exports_dir = script_dir / 'exports'
+        exports_dir = script_dir / "exports"
         exports_dir.mkdir(exist_ok=True)
 
         bc3_content = self.convert()
         output_path = exports_dir / output_filename
 
-        with open(output_path, 'w', encoding='windows-1252', newline='\r\n', errors='strict') as f:
+        with open(
+            output_path, "w", encoding="windows-1252", newline="\r\n", errors="strict"
+        ) as f:
             f.write(bc3_content)
 
         print(f"BC3 file successfully exported: {output_path}")

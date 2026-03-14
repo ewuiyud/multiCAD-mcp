@@ -179,8 +179,24 @@ class FileMixin:
             # Use direct iteration instead of Item indexing
             for doc in application.Documents:
                 if doc.Name == drawing_name:
+                    # Intenta activar a través del documento
                     doc.Activate()
+                    # Intenta también forzarlo a nivel de aplicación (ZWCAD/AutoCAD)
+                    try:
+                        application.ActiveDocument = doc
+                    except Exception:
+                        pass
+                    
                     self.document = doc
+                    
+                    # Pump Windows messages briefly to let CAD process the GUI switch
+                    try:
+                        import pythoncom
+                        for _ in range(5):
+                            pythoncom.PumpWaitingMessages()
+                    except ImportError:
+                        pass
+                    
                     logger.info(f"Switched to drawing: {drawing_name}")
                     return True
 

@@ -275,6 +275,8 @@ class BlockMixin:
         scale_z: float = 1.0,
         rotation: float = 0.0,
         layer: str = "0",
+        color: str = "white",
+        attributes: Dict[str, str] = None,
         _skip_refresh: bool = False,
     ) -> str:
         """Insert a block reference in the drawing.
@@ -287,6 +289,8 @@ class BlockMixin:
             scale_z: Z scale factor (default: 1.0)
             rotation: Rotation angle in degrees (default: 0.0)
             layer: Layer to place the block on (default: "0")
+            color: Color for the block reference (default: "white")
+            attributes: Dictionary of attribute tag -> value pairs to set (optional)
             _skip_refresh: Internal flag to skip view refresh (used for batch operations)
 
         Returns:
@@ -332,12 +336,20 @@ class BlockMixin:
                 rotation_rad,
             )
 
-            # Apply layer property
-            if layer != "0":
+            # Apply layer and color properties
+            self._apply_properties(block_ref, layer, color)
+
+            # Set attributes if provided
+            if attributes and hasattr(block_ref, "HasAttributes") and block_ref.HasAttributes:
                 try:
-                    block_ref.Layer = layer
+                    attr_lookup = {k.upper(): v for k, v in attributes.items()}
+                    for attr in block_ref.GetAttributes():
+                        tag_upper = str(attr.TagString).upper()
+                        if tag_upper in attr_lookup:
+                            attr.TextString = str(attr_lookup[tag_upper])
+                            logger.debug(f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}")
                 except Exception as e:
-                    logger.warning(f"Failed to set block layer to '{layer}': {e}")
+                    logger.warning(f"Failed to set some attributes: {e}")
 
             self._track_entity(block_ref, "block")
 
@@ -385,6 +397,72 @@ class BlockMixin:
         except Exception as e:
             logger.error(f"Failed to list blocks: {e}")
             return []
+
+    def get_block_counts(self, block_names: List[str] = None) -> Dict[str, int]:
+        """Get instant counts of block insertions using SelectionSets.
+        
+        Args:
+            block_names: Optional list of specific blocks to count. If None, counts all blocks.
+            
+        Returns:
+            Dictionary mapping block names to insertion counts
+        """
+        import time
+        import pythoncom
+        import win32com.client
+        from contextlib import contextmanager
+        
+        try:
+            self._validate_connection()
+            document = self._get_document("get_block_counts")
+            
+            if block_names is None:
+                block_names = self.list_blocks()
+                
+            block_counts = {}
+            perf_start = time.perf_counter()
+            
+            @contextmanager
+            def _temp_ss(doc, name):
+                try:
+                    doc.SelectionSets.Item(name).Delete()
+                except:
+                    pass
+                ss = doc.SelectionSets.Add(name)
+                try:
+                    yield ss
+                finally:
+                    try:
+                        ss.Delete()
+                    except:
+                        pass
+                        
+            def to_variant_array(types, values):
+                return win32com.client.VARIANT(types, values)
+                
+            # Filter by 0="INSERT" and 2="BlockName"
+            ft = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_I2, [0, 2])
+            
+            with _temp_ss(document, "MCP_BLOCK_COUNTS") as ss:
+                for bname in block_names:
+                    fd = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, ["INSERT", bname])
+                    try:
+                        ss.Clear()
+                        ss.Select(5, None, None, ft, fd) # 5 = acSelectionSetAll
+                        count = ss.Count
+                        if count > 0:
+                            block_counts[bname] = count
+                    except Exception as e:
+                        logger.debug(f"Failed to count block {bname}: {e}")
+                        
+            elapsed = time.perf_counter() - perf_start
+            logger.info(f"[PERF] Block counting via SelectionSets took {elapsed:.3f}s")
+            
+            return block_counts
+            
+        except Exception as e:
+            logger.error(f"Failed to get block counts: {e}")
+            return {}
 
     def get_block_info(self, block_name: str) -> Dict[str, Any]:
         """Get detailed information about a block definition.
@@ -512,3 +590,69 @@ class BlockMixin:
         except Exception as e:
             logger.error(f"Failed to get block references for '{block_name}': {e}")
             return []
+
+    def get_block_attributes(self, handle: str) -> Dict[str, str]:
+        """Get all attributes from a block reference.
+
+        Args:
+            handle: Handle of the block reference entity
+
+        Returns:
+            Dictionary of attribute tag -> value pairs
+        """
+        try:
+            document = self._get_document("get_block_attributes")
+            entity = document.HandleToObject(handle)
+
+            if not hasattr(entity, "HasAttributes") or not entity.HasAttributes:
+                logger.debug(f"Entity {handle} has no attributes")
+                return {}
+
+            attributes: Dict[str, str] = {}
+            for attr in entity.GetAttributes():
+                tag = str(attr.TagString)
+                value = str(attr.TextString)
+                attributes[tag] = value
+
+            logger.debug(f"Retrieved {len(attributes)} attributes from block {handle}")
+            return attributes
+
+        except Exception as e:
+            logger.error(f"Failed to get block attributes: {e}")
+            return {}
+
+    def set_block_attributes(self, handle: str, attributes: Dict[str, str]) -> bool:
+        """Set attributes on a block reference.
+
+        Args:
+            handle: Handle of the block reference entity
+            attributes: Dictionary of attribute tag -> value pairs to set
+
+        Returns:
+            True if at least one attribute was set, False otherwise
+        """
+        try:
+            document = self._get_document("set_block_attributes")
+            entity = document.HandleToObject(handle)
+
+            if not hasattr(entity, "HasAttributes") or not entity.HasAttributes:
+                logger.warning(f"Entity {handle} has no attributes")
+                return False
+
+            attr_lookup = {k.upper(): v for k, v in attributes.items()}
+            set_count = 0
+
+            for attr in entity.GetAttributes():
+                tag_upper = str(attr.TagString).upper()
+                if tag_upper in attr_lookup:
+                    attr.TextString = str(attr_lookup[tag_upper])
+                    set_count += 1
+                    logger.debug(f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}")
+
+            self.refresh_view()
+            logger.info(f"Set {set_count} attributes on block {handle}")
+            return set_count > 0
+
+        except Exception as e:
+            logger.error(f"Failed to set block attributes: {e}")
+            return False

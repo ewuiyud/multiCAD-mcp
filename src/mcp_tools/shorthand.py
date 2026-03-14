@@ -399,12 +399,20 @@ BLOCK_OP_FIELDS: Dict[str, FieldList] = {
         ("scale", False, 1.0),
         ("rotation", False, 0.0),
         ("layer", False, "0"),
+        ("color", False, "white"),
     ],
     "create": [
         ("block_name", True, None),
         ("entity_handles", False, None),  # comma-separated
         ("insertion_point", False, "0,0"),
         ("description", False, ""),
+    ],
+    "get_attrs": [
+        ("handle", True, None),
+    ],
+    "set_attrs": [
+        ("handle", True, None),
+        ("attributes", True, None),  # JSON string: {"TAG": "value"}
     ],
 }
 
