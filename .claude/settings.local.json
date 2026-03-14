@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m pytest:*)"
+      "Bash(python -m pytest:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(.venv/Scripts/ruff.exe:*)",
+      "Bash(.venv/Scripts/mypy.exe:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(head:*)",
+      "Bash(.venv/Scripts/interrogate.exe:*)",
+      "Bash(.venv/Scripts/mkdocs.exe:*)"
     ]
   }
 }

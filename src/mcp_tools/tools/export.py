@@ -174,7 +174,7 @@ def register_export_tools(mcp):
                     - "json": return data as JSON (for analysis by the LLM)
                     - "excel": save to Excel file
             filename: Excel filename (only used when format="excel").
-                      Default: "drawing_data.xlsx"
+                      Default: "[drawing_name]_data.xlsx" (or "drawing_data.xlsx" if unnamed).
                       Saved to the configured output directory.
 
 
@@ -211,6 +211,14 @@ def register_export_tools(mcp):
                 },
                 indent=2,
             )
+
+        if format_lower == "excel" and filename == "drawing_data.xlsx":
+            try:
+                doc = adapter._get_document("export_data")
+                doc_stem = Path(doc.Name).stem if doc and doc.Name else "drawing"
+                filename = f"{doc_stem}_data.xlsx"
+            except Exception:
+                pass
 
         try:
             # For "selected" scope, check selection first
@@ -254,7 +262,7 @@ def register_export_tools(mcp):
                 )
 
             # Extract data (for json output or selected excel)
-            data = adapter.extract_drawing_data(only_selected=only_selected)
+            data = adapter.extract_drawing_data(only_selected=only_selected, limit=0)
 
             if not data:
                 return json.dumps(

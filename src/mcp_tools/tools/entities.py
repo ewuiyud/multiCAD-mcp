@@ -38,6 +38,14 @@ logger = logging.getLogger(__name__)
 
 
 def _select(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Select entities by color, layer, or type criterion.
+
+    Args:
+        spec: Operation spec with keys: by (str), value (str).
+
+    Returns:
+        Dict with keys: success (bool), count (int), handles (list), detail (str).
+    """
     adapter = get_current_adapter()
     by = spec["by"].lower()
 
@@ -74,6 +82,14 @@ def _select(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _move(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Move entities by a displacement offset.
+
+    Args:
+        spec: Operation spec with keys: handles (str), offset_x (float), offset_y (float).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     validated = MoveEntityRequest(
         handles=handle_list,
@@ -90,6 +106,14 @@ def _move(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _rotate(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Rotate entities around a center point.
+
+    Args:
+        spec: Operation spec with keys: handles (str), angle (float), center_x (float), center_y (float).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     validated = RotateEntityRequest(
         handles=handle_list,
@@ -107,6 +131,14 @@ def _rotate(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _scale(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Scale entities around a center point.
+
+    Args:
+        spec: Operation spec with keys: handles (str), scale_factor (float), center_x (float), center_y (float).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     validated = ScaleEntityRequest(
         handles=handle_list,
@@ -127,6 +159,14 @@ def _scale(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _set_color(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Change the color of entities.
+
+    Args:
+        spec: Operation spec with keys: handles (str), color (str).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     color = spec["color"]
     success = get_current_adapter().change_entity_color(handle_list, color)
@@ -138,6 +178,14 @@ def _set_color(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _set_layer(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Move entities to a different layer.
+
+    Args:
+        spec: Operation spec with keys: handles (str), layer_name (str).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     layer_name = spec["layer_name"]
     success = get_current_adapter().change_entity_layer(handle_list, layer_name)
@@ -149,6 +197,14 @@ def _set_layer(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _set_color_bylayer(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Reset entity colors to ByLayer.
+
+    Args:
+        spec: Operation spec with keys: handles (str or list).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handles_raw = spec["handles"]
     try:
         if isinstance(handles_raw, str):
@@ -175,6 +231,14 @@ def _set_color_bylayer(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _copy(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Copy entities to the clipboard.
+
+    Args:
+        spec: Operation spec with keys: handles (str).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     success = get_current_adapter().copy_entities(handle_list)
     return {
@@ -189,6 +253,14 @@ def _copy(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _paste(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Paste entities at a base point.
+
+    Args:
+        spec: Operation spec with keys: base_point (str, format 'x,y').
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     base_point = spec["base_point"]
     parts = str(base_point).split(",")
     if len(parts) < 2:
@@ -207,6 +279,14 @@ def _paste(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _delete(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Delete entities by handle.
+
+    Args:
+        spec: Operation spec with keys: handles (str).
+
+    Returns:
+        Dict with keys: success (bool), count (int), detail (str).
+    """
     handle_list = parse_handles(spec["handles"])
     adapter = get_current_adapter()
     deleted_count = 0
@@ -238,6 +318,16 @@ ENTITY_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
 def _validate_required_fields(
     spec: Dict[str, Any], required: List[str], action: str
 ) -> Optional[str]:
+    """Validate that required fields are present in spec.
+
+    Args:
+        spec: Operation spec dict to validate.
+        required: List of field names that must be present.
+        action: Action name used in the error message.
+
+    Returns:
+        Error message string if any fields are missing, otherwise None.
+    """
     missing = [f for f in required if f not in spec]
     if missing:
         return f"'{action}' requires fields: {', '.join(missing)}"

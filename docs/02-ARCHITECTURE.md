@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────┐
 │  FastMCP Server (server.py)         │
-│     54 MCP tools                    │
+│     55 CAD commands                  │
 └──────────────┬──────────────────────┘
                │
        ┌───────┴──────────┐
@@ -42,22 +42,19 @@
 
 ### 1. Server (`server.py`)
 
-Entry point that registers **7 unified MCP tools** via FastMCP. These tools act as dispatchers for **54 specific CAD commands**.
+Entry point that registers **7 unified MCP tools** via FastMCP. These tools act as dispatchers for **55 specific CAD commands**.
 
 ### 2. Tools (`mcp_tools/tools/`)
 
 7 modules, each providing one unified tool that dispatches multiple CAD commands:
 
-| Module | Unified Tool | Commands | Purpose |
-|--------|--------------|----------|---------|
-| session.py | `manage_session` | 4 | Connection, view, history |
+| session.py | `manage_session` | 11 | Connection, view, history, dashboard |
 | drawing.py | `draw_entities` | 10 | Unified entity creation |
-| blocks.py | `manage_blocks` | 5 | Block management |
-| layers.py | `manage_layers` | 8 | Layer management |
+| blocks.py | `manage_blocks` | 6 | Block management & attributes |
+| layers.py | `manage_layers` | 9 | Layer management & queries |
 | files.py | `manage_files` | 5 | File operations |
-| entities.py | `manage_entities` | 13 | Select, move, rotate, scale |
+| entities.py | `manage_entities` | 10 | Select, move, rotate, scale, color |
 | export.py | `export_data` | 4 | Data extraction & Excel |
-| debug.py | `debug_entities` | 2 | Internal diagnostics |
 
 ### 3. Adapter (`adapters/`)
 
@@ -276,4 +273,16 @@ class CADConfig:
     type: str
     prog_id: str
     startup_wait_time: float
+
+@dataclass
+class DashboardConfig:
+    port: int
+    host: str = "127.0.0.1"
+
+@dataclass
+class ServerConfig:
+    cad: Dict[str, CADConfig]
+    output: OutputConfig
+    dashboard: DashboardConfig
+    logging_level: str = "INFO"
 ```

@@ -9,9 +9,9 @@ multiCAD-mcp is an MCP server that lets you control your CAD software using AI a
 ## Features
 
 - **Multiple CAD Support**: Works with AutoCAD®, ZWCAD®, GstarCAD®, and BricsCAD®
-- **7 Unified MCP Tools**: Clean access to **54 CAD commands** for drawing, layers, entities, blocks, and files
-- **Block Creation** (v0.1.2+): Create blocks from entities or user selection
-- **Batch Operations** (v0.1.1+): 60-70% fewer API calls when managing multiple items
+- **7 Unified MCP Tools**: Clean access to **55 CAD commands** for drawing, layers, entities, blocks, and files
+- **Block Attributes** (v0.2.0+): Read and write block attribute values
+- **Block Creation**: Create blocks from entities or user selection
 - **Simple command execution**: "Draw a red circle at 50,50 with radius 25" - no complex syntax needed
 - **Complex tasks execution**: "Draw the graph of y = sen(X) and label the axes"
 - **Simple Integration**: Works with Claude, Cursor, VS Code, and any MCP-compatible client
@@ -33,10 +33,8 @@ Quick start:
 ```powershell
 git clone https://github.com/AnCode666/multiCAD-mcp.git
 cd multiCAD-mcp
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-py -m pip install --upgrade pywin32
+uv sync --dev
+uv run python -m pip install --upgrade pywin32
 ```
 
 ## Setup with Claude Desktop
@@ -75,7 +73,7 @@ multiCAD-mcp provides **7 unified MCP tools** that provide access to **54 differ
 - **Connection & Control**: Connection lifecycle, diagnostics, and natural language fallback.
 
 > [!TIP]
-> Use **batch tools** (e.g., `draw_lines`, `rename_layers`) when working with multiple items to minimize token usage and execution time.
+> Each tool accepts multiple operations in a single call using a compact shorthand format, reducing API overhead by up to 70%.
 
 ### Selected Entity Export
 
@@ -83,20 +81,15 @@ Export or extract data from only the entities currently selected in your CAD vie
 
 ```text
 # Export selected entities to Excel
-export_selected_to_excel(filename="selected_entities.xlsx")
+export_data(scope="selected", format="excel", filename="selected_entities.xlsx")
 
 # Extract selected entity data as JSON
-extract_selected_data()
+export_data(scope="selected", format="json")
 ```
 
 ### Complex Tasks
 
 You can ask your AI assistant to execute complex tasks that require multiple tools, such as drawing graphs of equations, complex title blocks, or data tables.
-
-### Natural Language Fallback
-
-If direct tool mapping fails, the `execute_natural_command` tool can trigger simple commands using natural language (e.g., "Draw a red line from 0,0 to 100,100").
-
 
 ## Configuration
 
@@ -111,6 +104,9 @@ Edit `src/config.json` to customize:
       "command_delay": 0.5
     }
   },
+  "dashboard": {
+    "port": 6666
+  },
   "output": {
     "directory": "~/Documents/multiCAD Exports"
   }
@@ -122,6 +118,8 @@ Edit `src/config.json` to customize:
 - **`logging_level`**: Set to `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control log verbosity
 - **`startup_wait_time`**: Seconds to wait for CAD application to start (increase if CAD is slow)
 - **`command_delay`**: Delay between commands in seconds
+- **`dashboard.port`**: Web dashboard port (default: 6666)
+- **`open_dashboard`**: [host, port] — open web dashboard in browser (default from config.json: 6666)
 - **`output.directory`**: Default directory for saved drawings and exports
 
 ## Troubleshooting
@@ -167,21 +165,26 @@ Available levels (from most to least verbose):
 - Make sure your CAD application is running
 - Check that you have the correct version installed
 - Verify Windows COM is properly configured
-- Use the **check_connection** tool to diagnose the issue
+- Use `manage_session` with `{"action": "status"}` to diagnose the issue
 - Check logs for detailed error messages (see above)
+
+The dashboard provides a real-time view of the CAD state. You can manually refresh the data using the "Refresh Now" button.
+
+- **Dashboard Port**: Change `dashboard.port` in `src/config.json` to your preferred port.
+- **Manual Refresh**: Click the refresh button to sync with current CAD state.
 
 ### "Not connected"
 
 - The server automatically connects on first use
 - If it fails, restart the CAD application and try again
-- Use the **connect_cad** tool to re-establish connection
+- Use `manage_session` with `{"action": "connect"}` to re-establish connection
 - Review logs to identify connection issues
 
 ### Commands not working
 
 - Check your CAD application's command line for messages or errors
 - Ensure coordinates are in valid format (e.g., "0,0" for 2D, "0,0,0" for 3D)
-- Verify connection status with the **check_connection** tool
+- Verify connection status with `manage_session` → `{"action": "status"}`
 - Enable DEBUG logging to see detailed command execution information
 
 ## Documentation
@@ -203,7 +206,7 @@ Available levels (from most to least verbose):
 
 ## Project Status
 
-**Version 0.1.3** - Refactored adapter architecture, block creation, and code optimization.
+**Version 0.2.0** - Unified tool architecture, block attribute management, and modern packaging.
 
 ## License
 

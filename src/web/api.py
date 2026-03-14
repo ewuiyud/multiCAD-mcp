@@ -10,13 +10,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from __version__ import __version__
-from adapters.adapter_manager import AdapterRegistry
+from adapters.adapter_manager import AdapterRegistry, get_active_cad_type
 from core import get_supported_cads
 
 logger = logging.getLogger(__name__)
 
 
 # ---------- In-memory log buffer for dashboard console ----------
+
 
 class _LogBuffer:
     """Thread-safe circular buffer for log records."""
@@ -29,13 +30,15 @@ class _LogBuffer:
     def append(self, level: str, name: str, msg: str, time_str: str) -> None:
         with self._lock:
             self._seq += 1
-            self._entries.append({
-                "seq": self._seq,
-                "time": time_str,
-                "level": level,
-                "name": name,
-                "msg": msg,
-            })
+            self._entries.append(
+                {
+                    "seq": self._seq,
+                    "time": time_str,
+                    "level": level,
+                    "name": name,
+                    "msg": msg,
+                }
+            )
 
     def since(self, seq: int) -> list:
         with self._lock:
@@ -52,6 +55,7 @@ class _MemoryLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             from datetime import datetime
+
             time_str = datetime.fromtimestamp(record.created).strftime("%H:%M:%S")
             self._buffer.append(
                 level=record.levelname,
@@ -70,49 +74,42 @@ log_handler.setLevel(logging.INFO)
 # FastAPI App
 api_app = FastAPI(title="multiCAD-MCP Dashboard API")
 
-# Bridge events for manual refresh requests
-# The web thread (dashboard) sets refresh_event, and the MCP thread (refresher)
-# waits for it to trigger a refresh_dashboard_cache() call.
-# Once finished, it sets refresh_done_event to release the web thread.
-refresh_event = threading.Event()
-refresh_done_event = threading.Event()
-export_event = threading.Event()
-export_done_event = threading.Event()
-export_result = {"success": False, "detail": ""}
-
 
 @api_app.post("/api/cad/export")
 async def api_cad_export() -> dict:
-    """Trigger an Excel export and wait for completion."""
+    """Trigger an Excel export."""
     if not _cache.get("connected"):
         return {"success": False, "detail": "No CAD connection"}
-        
-    export_done_event.clear()
-    export_event.set()
 
-    # Wait for completion (max 60s for very large drawings/Excel generation)
-    finished = export_done_event.wait(timeout=60.0)
+    try:
+        from adapters.adapter_manager import get_adapter
 
-    if finished:
-        return export_result
-    else:
-        return {"success": False, "detail": "Export timed out"}
+        adapter = get_adapter(only_if_running=True)
+        if adapter:
+            success = adapter.export_to_excel()
+            return {
+                "success": success,
+                "detail": "Exportado con éxito" if success else "Error al exportar",
+            }
+        else:
+            return {
+                "success": False,
+                "detail": "No se encontró un adaptador CAD activo",
+            }
+    except Exception as e:
+        logger.error(f"Error in export: {e}")
+        return {"success": False, "detail": f"Error: {str(e)}"}
 
 
 @api_app.post("/api/cad/refresh")
 async def api_cad_trigger_refresh() -> dict:
-    """Trigger a manual refresh and wait for completion."""
-    refresh_done_event.clear()
-    refresh_event.set()
-
-    # Wait for completion (max 20s for large drawings)
-    # We do this in a blocking way because it's a dedicated worker thread in FastAPI
-    finished = refresh_done_event.wait(timeout=20.0)
-
-    if finished:
+    """Trigger a manual refresh directly."""
+    try:
+        refresh_dashboard_cache()
         return {"success": True, "detail": "Refresh completed"}
-    else:
-        return {"success": False, "detail": "Refresh timed out"}
+    except Exception as e:
+        logger.error(f"Error refreshing dashboard: {e}")
+        return {"success": False, "detail": str(e)}
 
 
 # ---------- Thread-safe dashboard cache ----------
@@ -157,7 +154,6 @@ class DashboardCache:
 
 
 _cache = DashboardCache()
-pending_switch_drawing = None
 
 
 def refresh_dashboard_cache():
@@ -176,7 +172,7 @@ def refresh_dashboard_cache():
         except CADConnectionError:
             adapter = None
             active = "None"
-            
+
     except Exception as e:
         logger.error(f"Error getting adapter for dashboard refresh: {e}")
         adapter = None
@@ -197,7 +193,9 @@ def refresh_dashboard_cache():
                 entities=[],
             )
         else:
-            logger.debug("Keep existing cache state despite refresh failure (threading/COM context issue?)")
+            logger.debug(
+                "Keep existing cache state despite refresh failure (threading/COM context issue?)"
+            )
         return
 
     try:
@@ -210,18 +208,10 @@ def refresh_dashboard_cache():
         return
 
     try:
-        global pending_switch_drawing
-        if pending_switch_drawing:
-            try:
-                adapter.switch_drawing(pending_switch_drawing)
-            except Exception as e:
-                logger.error(f"Error executing pending switch: {e}")
-            pending_switch_drawing = None
-            
         # Ask adapter to verify if active document has changed behind the scenes
         if hasattr(adapter, "check_document_change"):
             adapter.check_document_change()
-            
+
         # Single drawing extraction (Active Document)
         try:
             current_drawing = adapter.document.Name if adapter.document else "None"
@@ -245,7 +235,7 @@ def refresh_dashboard_cache():
 
         # 2. Extract detailed entities only for a sample (max 1000) to prevent UI/COM freeze
         # We no longer extract a sample here. We fetch dynamically via /api/cad/entities.
-        entities_info = []
+        entities_info: list[dict] = []
 
         # 3. Get Layers info
         try:
@@ -259,7 +249,7 @@ def refresh_dashboard_cache():
             insert_counts = adapter.get_block_counts()
         except:
             insert_counts = {}
-            
+
         # Build rich block dicts: list_blocks() returns List[str], we need List[dict]
         try:
             block_names: list = adapter.list_blocks()
@@ -278,7 +268,13 @@ def refresh_dashboard_cache():
                 else:
                     blocks_info.append({"Name": name, "ObjectCount": 0, "Count": count})
             except Exception:
-                blocks_info.append({"Name": name, "ObjectCount": 0, "Count": insert_counts.get(name, 0)})
+                blocks_info.append(
+                    {
+                        "Name": name,
+                        "ObjectCount": 0,
+                        "Count": insert_counts.get(name, 0),
+                    }
+                )
 
         _cache.update(
             connected=True,
@@ -287,9 +283,9 @@ def refresh_dashboard_cache():
             current_drawing=current_drawing,
             layers=layers_info,
             blocks=blocks_info,
-            entities=entities_info, # Note: This is now a sample of max 1000
-            entity_counts=entity_counts, # New: Fast overview data
-            total_entities=total_entities, # New: Accurate total number
+            entities=entities_info,  # Note: This is now a sample of max 1000
+            entity_counts=entity_counts,  # New: Fast overview data
+            total_entities=total_entities,  # New: Accurate total number
         )
 
         logger.info(
@@ -340,7 +336,7 @@ async def api_debug_registry() -> dict:
     instances = registry.get_cad_instances()
     return {
         "registry_id": id(registry),
-        "active_cad_type": registry._active_cad_type,
+        "active_cad_type": get_active_cad_type(),
         "instances": list(instances.keys()),
         "cache": _cache.snapshot(),
     }
@@ -351,23 +347,21 @@ async def api_cad_switch_drawing(request: SwitchDrawingRequest) -> dict:
     """Switch the active CAD drawing and trigger a cache refresh."""
     if not _cache.get("connected"):
         return {"success": False, "error": "No CAD connection"}
-    
+
     from adapters.adapter_manager import get_adapter
+
     try:
-        get_adapter(only_if_running=True)
+        adapter = get_adapter(only_if_running=True)
     except Exception:
         return {"success": False, "error": "No active CAD adapter found"}
-    
+
     try:
-        # Instead of calling adapter directly from this thread (which throws RPC_E_WRONG_THREAD),
-        # we tell the background refresher thread to switch it.
-        global pending_switch_drawing
-        pending_switch_drawing = request.drawing_name
-        logger.info(f"Queued drawing switch to: {request.drawing_name}")
-        
-        # Trigger cache refresh in the background thread
-        refresh_event.set()
-        
+        adapter.switch_drawing(request.drawing_name)
+        logger.info(f"Switched drawing to: {request.drawing_name}")
+
+        # Trigger cache refresh synchronously
+        refresh_dashboard_cache()
+
         return {"success": True, "message": f"Switching to {request.drawing_name}"}
     except Exception as e:
         logger.error(f"Failed to switch drawing: {e}")
@@ -409,20 +403,21 @@ async def api_cad_blocks() -> dict:
 
 @api_app.get("/api/cad/entities")
 async def api_cad_entities(
-    page: int = Query(default=1, ge=1), 
+    page: int = Query(default=1, ge=1),
     limit: int = Query(default=500, ge=1, le=2000),
-    type: Optional[str] = Query(default=None)
+    type: Optional[str] = Query(default=None),
 ) -> dict:
     """Get entities from the active CAD drawing dynamically (paginated, by type)."""
     if not _cache.get("connected"):
         return {"success": False, "error": "No CAD connection"}
-        
+
     try:
         from adapters.adapter_manager import get_adapter
+
         adapter = get_adapter(only_if_running=True)
         if hasattr(adapter, "check_document_change"):
             adapter.check_document_change()
-            
+
         # Map friendly name or internal count key to DXF name
         # Values are lists of DXF types to try in order.
         mapping = {
@@ -449,11 +444,13 @@ async def api_cad_entities(
             "Dimension": ["DIMENSION"],
             "Spline": ["SPLINE"],
             "Point": ["POINT"],
-            "Hatch": ["HATCH"]
+            "Hatch": ["HATCH"],
         }
-        
-        requested_types = mapping.get(type, [type] if type else None)
-        
+
+        requested_types = mapping.get(type) if type else None
+        if type and not requested_types:
+            requested_types = [type]
+
         offset = (page - 1) * limit
         entities = []
         dxf_type = None
@@ -462,35 +459,44 @@ async def api_cad_entities(
             # Try types in order until we find some entities or run out of types
             for t_variant in requested_types:
                 res_entities = adapter.extract_drawing_data(
-                    only_selected=False, limit=limit, offset=offset, entity_type=t_variant
+                    only_selected=False,
+                    limit=limit,
+                    offset=offset,
+                    entity_type=t_variant,
                 )
                 if res_entities:
                     entities = res_entities
                     dxf_type = t_variant
                     break
-            
+
             # If still nothing after all variants, ensure we tried at least the first one for consistency
             if not entities and requested_types:
                 dxf_type = requested_types[0]
         else:
             # Global extraction
-            entities = adapter.extract_drawing_data(only_selected=False, limit=limit, offset=offset)
+            entities = adapter.extract_drawing_data(
+                only_selected=False, limit=limit, offset=offset
+            )
 
         # Get total for this specific type or global
         entity_counts = _cache.get("entity_counts", {})
-        total_items = entity_counts.get(type, 0) if type else _cache.get("total_entities", 0)
-        
+        total_items = (
+            entity_counts.get(type, 0) if type else _cache.get("total_entities", 0)
+        )
+
         return {
-            "success": True, 
+            "success": True,
             "entities": entities,
             "pagination": {
                 "page": page,
                 "limit": limit,
                 "total": total_items,
-                "total_pages": (total_items + limit - 1) // limit if total_items > 0 else 1,
+                "total_pages": (total_items + limit - 1) // limit
+                if total_items > 0
+                else 1,
                 "type": type,
-                "dxf_type": dxf_type
-            }
+                "dxf_type": dxf_type,
+            },
         }
     except Exception as e:
         logger.error(f"Failed to extract entities: {e}")

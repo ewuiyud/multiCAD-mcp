@@ -30,6 +30,15 @@ logger = logging.getLogger(__name__)
 
 
 def _save(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Save the current drawing to a file.
+
+    Args:
+        spec: Operation spec with keys: filepath (str, optional), filename (str, optional),
+            format (str, optional): 'dwg' (default), 'dxf', or 'pdf'.
+
+    Returns:
+        Dict with keys: success (bool), detail (str), path (str, if saved to a path).
+    """
     filepath = spec.get("filepath", "")
     filename = spec.get("filename", "")
     fmt = spec.get("format", "dwg")
@@ -57,6 +66,14 @@ def _save(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _new(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a new drawing.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     success = get_current_adapter().new_drawing()
     return {
         "success": success,
@@ -65,6 +82,14 @@ def _new(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _close(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Close the current drawing.
+
+    Args:
+        spec: Operation spec with keys: save_changes (bool, optional, default False).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     save_changes = spec.get("save_changes", False)
     adapter = get_current_adapter()
     success = adapter.close_drawing(save_changes=save_changes)
@@ -83,6 +108,14 @@ def _close(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _list(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """List all open drawings.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), count (int), drawings (list), detail (str, if none open).
+    """
     drawings = get_current_adapter().get_open_drawings()
     if not drawings:
         return {
@@ -95,6 +128,14 @@ def _list(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _switch(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Switch the active drawing.
+
+    Args:
+        spec: Operation spec with keys: drawing_name (str).
+
+    Returns:
+        Dict with keys: success (bool), detail (str), available (list, if not found).
+    """
     drawing_name = spec["drawing_name"]
     adapter = get_current_adapter()
     success = adapter.switch_drawing(drawing_name)
@@ -123,6 +164,16 @@ FILE_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
 def _validate_required_fields(
     spec: Dict[str, Any], required: List[str], action: str
 ) -> Optional[str]:
+    """Validate that required fields are present in spec.
+
+    Args:
+        spec: Operation spec dict to validate.
+        required: List of field names that must be present.
+        action: Action name used in the error message.
+
+    Returns:
+        Error message string if any fields are missing, otherwise None.
+    """
     missing = [f for f in required if f not in spec]
     if missing:
         return f"'{action}' requires fields: {', '.join(missing)}"

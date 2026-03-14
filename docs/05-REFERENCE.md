@@ -2,162 +2,166 @@
 
 ## Summary
 
-**7 unified MCP tools** providing access to **54 CAD commands**:
+**7 unified MCP tools** providing access to **55 CAD commands** via a shorthand dispatch format:
 
-| Unified Tool | Commands | Category |
-|--------------|----------|----------|
-| `manage_session` | 4 | Connection & Control |
-| `draw_entities` | 10 | Unified Drawing |
-| `manage_blocks` | 5 | Block Management |
-| `manage_layers` | 8 | Layer Management |
-| `manage_files` | 5 | File Operations |
-| `manage_entities` | 13 | Entity Management |
-| `export_data` | 4 | Data Extraction |
-| `debug_entities` | 2 | Diagnostics |
-
----
-
-## Connection Tools (4)
-
-| Tool | Description |
-|------|-------------|
-| `connect_cad` | Connect to CAD (cad_type: autocad, zwcad, gcad, bricscad) |
-| `disconnect_cad` | Disconnect from CAD |
-| `list_supported_cads` | List supported CAD types |
-| `get_connection_status` | Get connection status |
+| Unified Tool | Actions | Category |
+|--------------|---------|----------|
+| `manage_session` | connect, disconnect, status, zoom_extents, undo, redo, screenshot, export_view, check_running, open_dashboard, list_supported | Connection & Control |
+| `draw_entities` | line, circle, arc, rect, polyline, spline, text, dimension, leader, mleader | Drawing |
+| `manage_blocks` | list, info, insert, create, get_attrs, set_attrs | Blocks |
+| `manage_layers` | create, delete, rename, on, off, set_color, is_on, list, info | Layers |
+| `manage_files` | save, new, close, list, switch | Files |
+| `manage_entities` | select, move, rotate, scale, set_color, set_layer, set_color_bylayer, copy, paste, delete | Entities |
+| `export_data` | scope=all/selected, format=json/excel | Export |
 
 ---
 
-## Drawing Tools (10)
+## Shorthand Format
 
-### Batch Operations
+All tools accept operations as a **plain-text shorthand** (one per line), which is far more token-efficient than JSON:
 
-| Tool | Description |
-|------|-------------|
-| `draw_lines` | Draw multiple lines `[{"start":"0,0","end":"10,10","color":"red"}]` |
-| `draw_circles` | Draw multiple circles `[{"center":"0,0","radius":5}]` |
-| `draw_arcs` | Draw multiple arcs |
-| `draw_rectangles` | Draw multiple rectangles |
-| `draw_polylines` | Draw multiple polylines |
-| `draw_texts` | Draw multiple text labels |
-| `draw_splines` | Draw multiple splines |
-| `add_dimensions` | Add multiple dimensions |
+```
+# draw_entities
+line|0,0|100,0|red|walls
+circle|50,40|10|blue
 
-### Single Operations
+# manage_layers
+create|walls|red|50
+off|Defpoints,notes
 
-| Tool | Description |
-|------|-------------|
-| `draw_circle_and_line` | Helper: draw circle and line |
-| `create_block` | Create block from handles or selection |
+# manage_entities
+select|layer|walls
+move|A1B2,C3D4|10|5
+```
+
+JSON arrays are also accepted for backwards compatibility.
 
 ---
 
-## Block Tools (5)
+## manage_session
 
-| Tool | Description |
-|------|-------------|
-| `create_block` | Create block from entities |
-| `insert_block` | Insert block at point |
-| `insert_blocks_batch` | Insert multiple blocks |
-| `list_blocks` | List all block definitions |
-| `get_block_info` | Get block properties |
-| `get_block_references` | Get block reference instances |
+Connection lifecycle, view control, and history.
 
----
-
-## Layer Tools (8)
-
-### Batch Operations
-
-| Tool | Description |
-|------|-------------|
-| `rename_layers` | Rename multiple layers |
-| `delete_layers` | Delete multiple layers |
-| `turn_layers_on` | Show multiple layers |
-| `turn_layers_off` | Hide multiple layers |
-
-### Single Operations
-
-| Tool | Description |
-|------|-------------|
-| `create_layer` | Create new layer |
-| `list_layers` | List all layers |
-| `is_layer_on` | Check layer visibility |
-| `set_layer_color` | Set layer color |
+```
+connect                          # auto-detect and connect
+disconnect                       # release COM connection
+status                           # current connection status
+check_running                    # detect CAD without launching
+list_supported                   # list available CAD types
+zoom_extents                     # fit view to all entities
+undo                             # undo 1 action
+undo|{"count": 3}                # undo 3 actions (JSON format)
+redo                             # redo 1 action
+screenshot                       # capture window (includes UI chrome)
+export_view                      # render drawing internally (works obscured)
+open_dashboard                   # open web dashboard in browser
+```
 
 ---
 
-## File Tools (5)
+## draw_entities
 
-| Tool | Description |
-|------|-------------|
-| `save_drawing` | Save to DWG, DXF, or PDF |
-| `new_drawing` | Create blank drawing |
-| `close_drawing` | Close active drawing |
-| `get_open_drawings` | List open files |
-| `switch_drawing` | Switch between drawings |
+Create geometric entities. Shorthand: `type|param1|param2|...|color|layer`
 
----
+```
+line|start|end|color|layer                    → line|0,0|10,10|red|walls
+circle|center|radius|color                    → circle|5,5|3|blue
+arc|center|radius|start_angle|end_angle       → arc|0,0|5|0|90
+rect|corner1|corner2|color                    → rect|0,0|20,15
+polyline|pts(;sep)|closed|color               → polyline|0,0;10,10;20,0|closed
+spline|pts(;sep)|closed|color                 → spline|0,0;5,10;10,0
+text|pos|text|height|color                    → text|5,5|Hello World|2.5
+dimension|start|end|color                     → dimension|0,0|10,0
+leader|pts(;sep)|text|height|color|layer      → leader|0,0;10,10|My note|2.5|red
+leader|group1~~group2|text|...                → leader|0,0;10,10~~20,0;10,10|Label
+```
 
-## Entity Tools (13)
+**DEFAULTS:** `color=white`, `layer=0`
 
-### Selection
-
-| Tool | Description |
-|------|-------------|
-| `select_by_color` | Select entities by color |
-| `select_by_layer` | Select entities by layer |
-| `select_by_type` | Select entities by type (line, circle, etc.) |
-
-### Manipulation
-
-| Tool | Description |
-|------|-------------|
-| `move_entities` | Move entities by offset |
-| `rotate_entities` | Rotate around point |
-| `scale_entities` | Scale from point |
-| `copy_entities` | Copy to clipboard |
-| `paste_entities` | Paste at point |
-
-### Property Changes
-
-| Tool | Description |
-|------|-------------|
-| `change_entity_color` | Change color (single) |
-| `change_entities_colors` | Change colors (batch) |
-| `change_entity_layer` | Change layer (single) |
-| `change_entities_layers` | Change layers (batch) |
-| `set_entities_color_bylayer` | Set color ByLayer |
+**Leaders:** first point = arrowhead, last point = text attach. Use `~~` for multi-arrow.
 
 ---
 
-## Simple Tools (3)
+## manage_layers
 
-| Tool | Description |
-|------|-------------|
-| `zoom_extents` | Fit view to all entities |
-| `undo` | Undo operations (count param) |
-| `redo` | Redo operations (count param) |
+```
+create|name|color|lineweight     → create|walls|red|50
+delete|name                      → delete|temp
+rename|old|new                   → rename|Layer1|furniture
+on|names(,sep)                   → on|walls,doors
+off|names(,sep)                  → off|Defpoints
+set_color|name|color             → set_color|0|white
+is_on|name                       → is_on|walls
+list                             # list all layer names
+info                             # full layer details (color, locked, frozen)
+```
 
----
-
-## Export Tools (4)
-
-| Tool | Description |
-|------|-------------|
-| `export_drawing_to_excel` | Export all entities to Excel |
-| `extract_drawing_data` | Get all entity data as JSON |
-| `export_selected_to_excel` | Export selected entities to Excel |
-| `extract_selected_data` | Get selected entity data as JSON |
+**DEFAULTS:** `color=white`, `lineweight=25`
 
 ---
 
-## Debug Tools (2)
+## manage_blocks
 
-| Tool | Description |
-|------|-------------|
-| `debug_entities` | List all entities with properties |
-| `test_select_by_layer` | Test layer selection |
+```
+list                                           # list all block definitions
+info|block_name|include                        → info|Door|both
+insert|name|point|scale|rotation|layer|color  → insert|Door|10,20|1.5|90|walls|red
+create|name|handles|point|description         → create|MyBlock|A1,B2|0,0|Desc
+get_attrs|handle                              → get_attrs|A1B2C3
+set_attrs|handle|{"TAG": "value"}             → set_attrs|A1B2C3|{"POLOS": "4P"}
+```
+
+**`include`:** `info` (default) | `references` | `both`
+
+---
+
+## manage_entities
+
+```
+select|by|value               → select|layer|walls
+move|handles|dx|dy            → move|A1,B2|10|5
+rotate|handles|angle|cx|cy   → rotate|A1|45|0|0
+scale|handles|factor|cx|cy   → scale|A1|2.0|0|0
+set_color|handles|color      → set_color|A1,B2|red
+set_layer|handles|layer      → set_layer|A1|walls
+set_color_bylayer|handles    → set_color_bylayer|A1,B2
+copy|handles                 → copy|A1,B2
+paste|base_point             → paste|100,200
+delete|handles               → delete|A1,B2
+```
+
+**`by`:** `color` | `layer` | `type`
+**`handles`:** comma-separated entity handles (e.g. `A1B2,C3D4`)
+
+---
+
+## manage_files
+
+```
+save|path_or_filename|format  → save|/path/file.dwg
+save|filename                 → save|backup.dwg
+new                           # create new drawing
+close|save_changes            → close|true
+list                          # list open drawings
+switch|drawing_name           → switch|floor_plan.dwg
+```
+
+**`format`:** `dwg` (default) | `dxf` | `pdf`
+
+---
+
+## export_data
+
+Extract entity data as JSON or export to Excel (3 sheets: Entities, Layers, Blocks).
+
+```
+scope=all, format=json              # all entities as JSON
+scope=all, format=excel             # export to [drawing_name]_data.xlsx
+scope=selected, format=json         # selected entities as JSON
+scope=selected, format=excel, filename=selection.xlsx
+```
+
+**Excel columns:** `Handle`, `ObjectType`, `Layer`, `Color`, `Length`, `Area`, `Radius`, `Circumference`, `Name`
 
 ---
 
@@ -167,7 +171,7 @@
 ```
 "0,0"        # 2D
 "0,0,0"      # 3D
-"100.5,-20"  # Floats, negatives OK
+"100.5,-20"  # Floats and negatives
 ```
 
 ### Colors
@@ -176,5 +180,5 @@
 ### CAD Types
 `autocad`, `zwcad`, `gcad`, `bricscad`
 
-### Entity Types
-`line`, `circle`, `arc`, `polyline`, `text`, `point`
+### Entity Types (for select|type|...)
+`LINE`, `CIRCLE`, `ARC`, `LWPOLYLINE`, `POLYLINE`, `TEXT`, `MTEXT`, `INSERT`, `DIMENSION`, `SPLINE`, `POINT`, `HATCH`

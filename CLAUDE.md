@@ -1,219 +1,91 @@
 # CLAUDE.md
 
-AI assistant guidance for working with the multiCAD-mcp codebase.
-
-## Project Overview
-
-**multiCAD-mcp** - MCP server for controlling CAD applications (AutoCAD, ZWCAD, GstarCAD, BricsCAD) via Windows COM.
-
-**Stack**: Python 3.10+ | FastMCP 2.0 | pywin32 | Windows-only
-
-**Version**: 0.2.0 (in `src/__version__.py`)
+MCP server for controlling CAD apps (AutoCAD, ZWCAD, GstarCAD, BricsCAD) via Windows COM/pywin32.
+**Stack**: Python 3.10+ | FastMCP 2.0 | uv | Windows-only
 
 ---
 
-## Quick Commands
+## Commands
 
 ```powershell
-# Setup
-pip install -r requirements.txt
-py -m pip install --upgrade pywin32
-
-# Run
-py src/server.py
-
-# Test
-pytest tests/ -v                      # 171 tests
-npx -y @modelcontextprotocol/inspector py src/server.py
-
-# Quality
-black src/ && mypy src/
+uv run python src/server.py                                    # Run server
+uv run pytest tests/ -v                                        # Tests (181 unit, manual excluded)
+uv run ruff check src/ && uv run ruff format src/              # Lint + format
+uv run mypy src/                                               # Type check (config: mypy.ini)
+npx -y @modelcontextprotocol/inspector uv run python src/server.py  # MCP Inspector
 ```
 
 ---
 
 ## Architecture
 
-**Three Layers**:
-1. **FastMCP Server** (`src/server.py`) - 7 unified MCP tools
-2. **Core** (`src/core/`) - Interfaces, config, exceptions
-3. **Adapters** (`src/adapters/`) - Mixin-based universal adapter
+Three layers: `server.py` → `mcp_tools/tools/` (7 unified tools) → `adapters/` (mixin-based COM adapter).
 
-**Mixin Architecture** (v0.1.3+):
+**7 tools / 55 commands** — each tool dispatches multiple actions via shorthand (`action|param|param`):
+`manage_session` (11) | `draw_entities` (10) | `manage_layers` (9) | `manage_blocks` (6) | `manage_files` (5) | `manage_entities` (10) | `export_data` (4)
 
-```
-adapters/
-├── autocad_adapter.py      # 99 lines - composite class
-├── adapter_manager.py      # AdapterRegistry singleton
-└── mixins/                 # 11 specialized mixins
-    ├── utility_mixin.py    # Helpers, converters (403 lines)
-    ├── connection_mixin.py # COM connection (176 lines)
-    ├── drawing_mixin.py    # draw_line, draw_circle (421 lines)
-    ├── layer_mixin.py      # Layer management (430 lines)
-    ├── file_mixin.py       # File operations (294 lines)
-    ├── view_mixin.py       # Zoom, undo/redo (121 lines)
-    ├── selection_mixin.py  # Entity selection (288 lines)
-    ├── entity_mixin.py     # Entity properties (73 lines)
-    ├── manipulation_mixin.py # Move, rotate, scale (458 lines)
-    ├── block_mixin.py      # Block operations (514 lines)
-    └── export_mixin.py     # Excel export (800 lines)
-```
+**Adapter composition** — `AutoCADAdapter` inherits 11 mixins + `CADInterface` ABC. All 4 CAD types share one adapter (identical COM API). Adding a new CAD type = add entry to `src/config.json` only.
 
-**Usage**:
+**`_archive/`** (root) — deprecated backup code, excluded from all analysis, tests, and type checks.
+
+---
+
+## Critical Rules
+
+### Imports — absolute only
 ```python
-from adapters import AutoCADAdapter
-adapter = AutoCADAdapter("autocad")  # or "zwcad", "gcad", "bricscad"
+from core import CADInterface          # ✓
+from ..core import CADInterface        # ✗ — breaks server.py sys.path setup
 ```
 
----
+### Coordinates
+- Input: 2D `(x,y)` or 3D `(x,y,z)` — always normalize via `normalize_coordinate()` → internal 3D
+- To COM: always via `_to_variant_array()` — never pass tuples directly to COM calls
 
-## File Structure
-
-```
-multiCAD-mcp/
-├── src/
-│   ├── server.py              # Entry point
-│   ├── __version__.py         # Version: 0.1.3
-│   ├── config.json            # Configuration
-│   ├── core/                  # Interfaces, config, exceptions
-│   ├── adapters/              # Mixin-based adapter + manager
-│   │   ├── autocad_adapter.py
-│   │   ├── adapter_manager.py # AdapterRegistry
-│   │   └── mixins/            # 11 mixin files
-│   └── mcp_tools/
-│       ├── helpers.py, decorators.py, constants.py
-│       └── tools/             # 7 tool modules
-├── tests/                     # 62 pytest tests
-├── docs/                      # Documentation
-└── requirements.txt
-```
-
----
-
-## Critical Notes
-
-### 1. Imports (Absolute Only)
-
+### Excel export
 ```python
-# ✓ CORRECT
-from core import CADInterface
-from adapters import AutoCADAdapter
-
-# ✗ WRONG (relative imports)
-from ..core import CADInterface
+cell.value = round(length, 3)   # Float, NOT string — regional decimal separator
+cell.number_format = '0.000'
 ```
 
-### 2. Version
+### COLOR_MAP (`src/mcp_tools/constants.py`)
+`{"red": 1, "blue": 5, "white": 7, ...}` — **do not modify** (AutoCAD Color Index, fixed standard)
 
-Single source: `src/__version__.py` → Edit only this file to bump version.
+### Exception constructors
+`CADConnectionError(cad_type: str, reason: str)` — **two required args**, not one string.
 
-### 3. AutoCAD Color Index
-
+### Batch drawing — skip intermediate refreshes
 ```python
-COLOR_MAP = {"red": 1, "blue": 5, "white": 7, ...}  # Do NOT modify
+adapter.draw_line(..., _skip_refresh=True)  # In loops
+adapter.refresh_view()                       # Once after loop
 ```
 
-### 4. Coordinates
-
-- Input: 2D `(x, y)` or 3D `(x, y, z)`
-- Internal: Always 3D via `normalize_coordinate()`
-- COM: VARIANT arrays via `_to_variant_array()`
-
-### 5. Excel Localization
-
-```python
-cell.value = round(length, 3)    # Float, not string
-cell.number_format = '0.000'     # Regional separator
-```
+### Dashboard
+Port configured in `src/config.json` → `dashboard.port` (default: **6666**).
 
 ---
 
-## Configuration
+## Adding a New Operation (recipe)
 
-`src/config.json`:
-```json
-{
-  "logging_level": "INFO",
-  "cad": {
-    "autocad": {
-      "prog_id": "AutoCAD.Application",
-      "startup_wait_time": 20.0
-    }
-  },
-  "output": {"directory": "~/Documents/multiCAD Exports"}
-}
-```
-
----
-
-## Common Tasks
-
-### Add New Operation
-
-1. Define abstract method in `src/core/cad_interface.py`
-2. Implement in appropriate mixin (`src/adapters/mixins/*.py`)
-3. Register tool in `src/mcp_tools/tools/*.py`
-4. Add test in `tests/`
-
-### Add New CAD Type
-
-Just add to `src/config.json`:
-```json
-"newcad": {"prog_id": "NewCAD.Application", "startup_wait_time": 15.0}
-```
-The universal adapter handles it automatically.
-
----
-
----
-
-## Error Handling
-
-```python
-from core.exceptions import (
-    CADConnectionError,    # Connection failed
-    CADOperationError,     # Operation failed
-    InvalidParameterError, # Bad parameter
-    CoordinateError,       # Bad coordinate
-    ColorError,            # Bad color
-    LayerError,            # Layer failed
-)
-```
-
----
-
-## Design Patterns
-
-- **Mixin Composition**: `AutoCADAdapter` inherits from 11 mixins
-- **Singleton**: `AdapterRegistry`, `ConfigManager`
-- **Context Managers**: `com_session()`, `SelectionSetManager`
-- **Decorator**: `@cad_tool` for tool registration
+1. Abstract method → `src/core/cad_interface.py`
+2. Implementation → relevant mixin in `src/adapters/mixins/`
+3. Register in matching tool → `src/mcp_tools/tools/` (dispatch table + shorthand parser if new action)
+4. Test → `tests/unit/`
 
 ---
 
 ## Workflow
 
-### Before Committing
-1. `pytest tests/ -v` - All 62 tests must pass
-2. `black src/` - Format
-3. `mypy src/` - Type check (must be clean)
-
-### Commit Policy
-⚠️ **Always ask user before committing**
-
+### Before committing
 ```powershell
-git commit -m "feat(module): description"
-git commit -m "fix(adapter): description"
+uv run pytest tests/ -v     # must pass
+uv run ruff format src/     # format
+uv run mypy src/            # must be clean
 ```
 
----
+### Commit policy
+⚠️ **Always ask the user before committing.**
+Format: `git commit -m "feat(scope): description"`
 
-## Windows-Only
-
-- COM required: pywin32
-- Use PowerShell commands
-- CAD startup: 15-20s (configurable)
-
----
-
-**Version**: 0.2.0 | **Commands**: 54 | **Unified Tools**: 7 | **Tests**: 171
+### Version
+Single source of truth: `src/__version__.py` — edit only this file.

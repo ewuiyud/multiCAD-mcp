@@ -38,7 +38,21 @@ class ConnectionMixin:
         ) -> bool: ...
 
     def connect(self, only_if_running: bool = False) -> bool:
-        """Connect to CAD application with COM initialization (thread-safe)."""
+        """Connect to the CAD application via COM, initializing COM for this thread.
+
+        Tries to attach to an already-running instance first. If none is found
+        and ``only_if_running`` is False, launches a new instance.
+
+        Args:
+            only_if_running: When True, return False instead of launching a new
+                CAD instance if none is currently running.
+
+        Returns:
+            True if the connection was established successfully.
+
+        Raises:
+            CADConnectionError: If COM initialization fails or the ProgID is invalid.
+        """
         try:
             logger.info(f"Connecting to {self.cad_type}...")
 
@@ -55,23 +69,32 @@ class ConnectionMixin:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    self.application = win32com.client.GetActiveObject(self.config.prog_id)
-                    logger.info(f"{self.cad_type} instance found (active via GetActiveObject)")
+                    self.application = win32com.client.GetActiveObject(
+                        self.config.prog_id
+                    )
+                    logger.info(
+                        f"{self.cad_type} instance found (active via GetActiveObject)"
+                    )
                     break
                 except Exception as e:
                     if attempt == max_retries - 1:
-                        logger.debug(f"GetActiveObject for {self.config.prog_id} failed after {max_retries} attempts: {e}")
+                        logger.debug(
+                            f"GetActiveObject for {self.config.prog_id} failed after {max_retries} attempts: {e}"
+                        )
                     else:
-                        pythoncom.CoInitialize() # Re-init just in case
+                        pythoncom.CoInitialize()  # Re-init just in case
                         import time
+
                         time.sleep(0.5)
                         continue
-                
+
                 # Start new instance
                 if only_if_running:
-                    logger.debug(f"{self.cad_type} not running and only_if_running=True. Skipping launch.")
+                    logger.debug(
+                        f"{self.cad_type} not running and only_if_running=True. Skipping launch."
+                    )
                     return False
-                    
+
                 logger.info(f"{self.cad_type} not running, starting new instance...")
                 try:
                     self.application = win32com.client.Dispatch(self.config.prog_id)
@@ -122,7 +145,7 @@ class ConnectionMixin:
                 raise CADConnectionError(self.cad_type, "Document validation failed")
 
             logger.info(f"✓ Successfully connected to {self.cad_type}")
-                
+
             return True
 
         except pywintypes.com_error as e:
@@ -166,13 +189,13 @@ class ConnectionMixin:
             )
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, _exc_type, _exc_val, _exc_tb) -> None:
         """Exit context: disconnect from CAD application.
 
         Args:
-            exc_type: Exception type if raised
-            exc_val: Exception value if raised
-            exc_tb: Exception traceback if raised
+            _exc_type: Exception type if raised
+            _exc_val: Exception value if raised
+            _exc_tb: Exception traceback if raised
         """
         self.disconnect()
 
@@ -201,14 +224,14 @@ class ConnectionMixin:
         """
         Check if the active document in the CAD application has changed.
         If it has, update self.document to the new active document.
-        
+
         Returns:
             bool: True if the document changed, False otherwise.
         """
         try:
             if not self.application:
                 return False
-                
+
             # If no documents are open, there's nothing to check
             if self.application.Documents.Count == 0:
                 if self.document is not None:
@@ -217,18 +240,18 @@ class ConnectionMixin:
                 return False
 
             active_doc = self.application.ActiveDocument
-            
+
             # If we didn't have a document before, but now we do
             if self.document is None:
                 self.document = active_doc
                 return True
-                
+
             # Compare names
             if self.document.Name != active_doc.Name:
                 self.document = active_doc
                 logger.info(f"Active document changed to: {active_doc.Name}")
                 return True
-                
+
             return False
         except Exception as e:
             # Silently catch COM errors during polling

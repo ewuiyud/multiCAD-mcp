@@ -43,7 +43,17 @@ class LayerMixin:
         color: str | int = "white",
         lineweight: int = 0,
     ) -> bool:
-        """Create a new layer."""
+        """Create a new layer in the active drawing via COM.
+
+        Args:
+            name: Name for the new layer.
+            color: Layer color as a name (e.g. ``"red"``) or ACI index. Default: ``"white"``.
+            lineweight: Line weight in hundredths of a millimetre (e.g. 25 = 0.25 mm).
+                Use 0 for the default line weight.
+
+        Returns:
+            True if the layer was created successfully, False otherwise.
+        """
         try:
             document = self._get_document("create_layer")
 
@@ -64,7 +74,16 @@ class LayerMixin:
             return False
 
     def set_current_layer(self, name: str) -> bool:
-        """Set active layer."""
+        """Set the active (current) drawing layer via COM.
+
+        New entities will be created on this layer by default.
+
+        Args:
+            name: Name of an existing layer to make current.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             document = self._get_document("set_current_layer")
 
@@ -77,7 +96,13 @@ class LayerMixin:
             return False
 
     def get_current_layer(self) -> str:
-        """Get current active layer."""
+        """Return the name of the currently active layer.
+
+        Falls back to the cached drawing state if the COM call fails.
+
+        Returns:
+            Active layer name string, or ``"0"`` if undetermined.
+        """
         try:
             document = self._get_document("get_current_layer")
             return str(document.ActiveLayer.Name)
@@ -86,7 +111,11 @@ class LayerMixin:
             return str(current_layer) if current_layer else "0"
 
     def list_layers(self) -> List[str]:
-        """Get list of all layers."""
+        """Return the names of all layers in the active drawing via COM.
+
+        Returns:
+            List of layer name strings. Empty list on error.
+        """
         try:
             document = self._get_document("list_layers")
             layers: List[str] = []
@@ -140,11 +169,12 @@ class LayerMixin:
                 import pythoncom
                 import win32com.client
                 import time
-                
+
                 perf_start = time.perf_counter()
-                
+
                 # Setup selection set manager helper
                 from contextlib import contextmanager
+
                 @contextmanager
                 def _temp_ss(doc, name):
                     try:
@@ -159,36 +189,45 @@ class LayerMixin:
                             ss.Delete()
                         except:
                             pass
-                
+
                 def to_variant_array(types, values):
                     return win32com.client.VARIANT(types, values)
-                    
-                ft = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_I2, [8]) # DXF Code 8: Layer Name
-                
+
+                ft = to_variant_array(
+                    pythoncom.VT_ARRAY | pythoncom.VT_I2, [8]
+                )  # DXF Code 8: Layer Name
+
                 with _temp_ss(document, "MCP_LAYER_COUNTS") as ss:
                     for layer in document.Layers:
                         lname = layer.Name
-                        fd = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, [lname])
+                        fd = to_variant_array(
+                            pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, [lname]
+                        )
                         try:
                             ss.Clear()
-                            ss.Select(5, None, None, ft, fd) # 5 = acSelectionSetAll
+                            ss.Select(5, None, None, ft, fd)  # 5 = acSelectionSetAll
                             count = ss.Count
                             if count > 0:
                                 layer_counts[lname] = count
                         except Exception as e:
-                            logger.debug(f"Failed to count entities on layer {lname}: {e}")
-                
+                            logger.debug(
+                                f"Failed to count entities on layer {lname}: {e}"
+                            )
+
                 elapsed = time.perf_counter() - perf_start
-                logger.info(f"[PERF] Layer counting via SelectionSets took {elapsed:.3f}s")
+                logger.info(
+                    f"[PERF] Layer counting via SelectionSets took {elapsed:.3f}s"
+                )
 
             # Build layer information
             for layer in document.Layers:
                 try:
                     # Get layer properties using dynamic dispatch for robustness
                     import win32com.client
+
                     dyn_layer = win32com.client.dynamic.Dispatch(layer)
-                    
-                    layer_color_val = 7 # Default white
+
+                    layer_color_val = 7  # Default white
                     try:
                         # Try TrueColor first for modern CAD compatibility
                         if hasattr(dyn_layer, "TrueColor"):
@@ -198,12 +237,16 @@ class LayerMixin:
                             layer_color_val = int(getattr(dyn_layer, "Color", 7))
                     except (TypeError, ValueError, AttributeError):
                         layer_color_val = 7
-                    
+
                     # Convert to name if possible, or keep as string numeric
                     color_map_reverse = {v: k for k, v in COLOR_MAP.items()}
-                    color_name = color_map_reverse.get(layer_color_val, str(layer_color_val))
+                    color_name = color_map_reverse.get(
+                        layer_color_val, str(layer_color_val)
+                    )
 
-                    logger.info(f"Layer '{layer.Name}' extracted color: {layer_color_val} ({color_name})")
+                    logger.info(
+                        f"Layer '{layer.Name}' extracted color: {layer_color_val} ({color_name})"
+                    )
 
                     layer_info = {
                         "Name": str(layer.Name).strip(),
@@ -216,9 +259,10 @@ class LayerMixin:
                             self._safe_get_property(layer, "Lineweight", "Default")
                         ),
                         "IsLocked": bool(self._safe_get_property(layer, "Lock", False)),
-                        "IsVisible": bool(self._safe_get_property(layer, "LayerOn", True)) and not bool(
-                            self._safe_get_property(layer, "Frozen", False)
-                        ),
+                        "IsVisible": bool(
+                            self._safe_get_property(layer, "LayerOn", True)
+                        )
+                        and not bool(self._safe_get_property(layer, "Frozen", False)),
                     }
                     layers_info.append(layer_info)
                 except Exception as e:
@@ -231,7 +275,17 @@ class LayerMixin:
             return []
 
     def rename_layer(self, old_name: str, new_name: str) -> bool:
-        """Rename an existing layer."""
+        """Rename an existing layer via COM.
+
+        Layer ``"0"`` cannot be renamed.
+
+        Args:
+            old_name: Current name of the layer to rename.
+            new_name: New name for the layer.
+
+        Returns:
+            True if renamed successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("rename_layer")
@@ -249,7 +303,16 @@ class LayerMixin:
             return False
 
     def delete_layer(self, name: str) -> bool:
-        """Delete a layer from the drawing."""
+        """Delete a layer from the active drawing via COM.
+
+        Layer ``"0"`` cannot be deleted.
+
+        Args:
+            name: Name of the layer to delete.
+
+        Returns:
+            True if deleted successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("delete_layer")
@@ -267,7 +330,14 @@ class LayerMixin:
             return False
 
     def turn_layer_on(self, name: str) -> bool:
-        """Turn on (make visible) a layer."""
+        """Make a frozen layer visible by unfreezing it via COM.
+
+        Args:
+            name: Name of the layer to turn on.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("turn_layer_on")
@@ -281,7 +351,14 @@ class LayerMixin:
             return False
 
     def turn_layer_off(self, name: str) -> bool:
-        """Turn off (hide) a layer."""
+        """Hide a layer by freezing it via COM.
+
+        Args:
+            name: Name of the layer to turn off.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("turn_layer_off")
@@ -295,7 +372,14 @@ class LayerMixin:
             return False
 
     def is_layer_on(self, name: str) -> bool:
-        """Check if a layer is visible (turned on)."""
+        """Check whether a layer is currently visible (not frozen) via COM.
+
+        Args:
+            name: Name of the layer to check.
+
+        Returns:
+            True if the layer is visible, False if frozen or on error.
+        """
         try:
             self._validate_connection()
             document = self._get_document("is_layer_on")

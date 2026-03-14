@@ -11,7 +11,8 @@ requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "AnCode666"},
-    {name = "SVF-GFA"}
+    {name = "SVF-GFA"},
+    {name = "JardiMargalefAgusti"}
 ]
 keywords = ["CAD", "AutoCAD", "ZWCAD", "MCP", "Windows", "COM"]
 classifiers = [
@@ -28,7 +29,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.14.0",
+    "fastmcp>=3.1.0",
     "mcp>=1.24.0",
     "pywin32>=300",
     "openpyxl>=3.1.0",
@@ -47,6 +48,11 @@ dev = [
     "pytest-asyncio>=0.20.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "interrogate>=1.7.0",
+]
+docs = [
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.25.0",
 ]
 
 [project.urls]
@@ -71,6 +77,7 @@ warn_unreachable = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["manual"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -98,7 +105,25 @@ exclude_lines = [
     "if sys.platform",
 ]
 
+[tool.interrogate]
+fail-under = 80
+ignore-init-method = true
+ignore-module = true
+ignore-magic = true
+ignore-nested-classes = false
+ignore-private = true
+ignore-property-decorators = true
+exclude = ["src/__version__.py", "src/z_legacy"]
+verbose = 1
+quiet = false
+whitelist-regex = []
+color = true
+
 [tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
 select = [
     "E",     # pycodestyle errors
     "W",     # pycodestyle warnings
@@ -111,8 +136,6 @@ ignore = [
     "D203",  # 1 blank line required before class docstring
     "D212",  # Multi-line docstring summary should start at the first line
 ]
-line-length = 88
-target-version = "py310"
 
 [tool.ruff.format]
 quote-style = "double"

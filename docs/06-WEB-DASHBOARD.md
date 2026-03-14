@@ -6,13 +6,13 @@ The multiCAD-mcp server includes an integrated web dashboard for real-time monit
 
 ## Access
 
-When the server is running, the dashboard is available at:
+When the server is running, the dashboard is available at (default from config.json: 6666):
 
 ```
-http://localhost:8080
+http://localhost:6666
 ```
 
-The dashboard automatically refreshes every 15 seconds by default, and can be manually refreshed using the "Refresh Now" button.
+The dashboard provides a real-time monitor of the CAD state. You can manually refresh the data using the "Refresh Now" button.
 
 ## Features
 
@@ -179,12 +179,10 @@ Cache is automatically populated when:
 
 ## Configuration
 
-### Auto-Refresh Interval
+The dashboard provides a real-time view of the CAD state. This is configurable in `src/config.json`:
 
-The dashboard auto-refreshes every 15 seconds. This is configurable in the API:
-
-- Enable/disable auto-refresh via UI toggle
-- Interval is not currently user-configurable (15s default)
+- **Dashboard Port**: Change `dashboard.port` to your preferred port.
+- **Manual Refresh**: Click the "Refresh Now" button to sync with current CAD state.
 
 ### Static Files
 
@@ -204,7 +202,7 @@ For drawings with 10,000+ entities:
 
 - All data is served locally (no external requests)
 - WebSocket support not implemented (uses polling via HTTP)
-- Cache is regenerated every 15s or on manual refresh
+- Cache is regenerated on manual refresh
 
 ## Troubleshooting
 
@@ -222,7 +220,7 @@ For drawings with 10,000+ entities:
 
 ### Performance Issues
 
-1. Reduce auto-refresh frequency or disable it
+1. Click the "Refresh Now" button
 2. Filter entity list by type
 3. Verify CAD application performance
 

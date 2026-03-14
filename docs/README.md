@@ -7,15 +7,16 @@
 | [../README.md](../README.md) | Installation, features, simple setup |
 | [01-SETUP.md](01-SETUP.md) | Development environment & Git workflow |
 | [02-ARCHITECTURE.md](02-ARCHITECTURE.md) | System design & Extending guide |
+| [03-CHANGELOG.md](03-CHANGELOG.md) | Version history |
 | [04-TROUBLESHOOTING.md](04-TROUBLESHOOTING.md) | Debugging and log analysis |
 | [05-REFERENCE.md](05-REFERENCE.md) | Complete MCP Tool reference |
-| [07-CHANGELOG.md](07-CHANGELOG.md) | Version history |
+| [06-WEB-DASHBOARD.md](06-WEB-DASHBOARD.md) | Dashboard & API details |
 
 ## Project Stats
 
-- **7 Unified Tools** (dispatching 54 commands)
+- **7 Unified Tools** (dispatching 55 commands)
 - **4 CAD Apps**: AutoCAD, ZWCAD, GstarCAD, BricsCAD
-- **62 Tests** passing
+- **171 Tests** passing
 - **Python 3.10+** | FastMCP 2.0
 
 ## I Want To...

@@ -47,7 +47,6 @@ from core.models import (
     DrawPolylineRequest,
     DrawTextRequest,
     DrawSplineRequest,
-    DrawLeaderRequest,
     DrawMLeaderRequest,
 )
 from mcp_tools.decorators import cad_tool, get_current_adapter
@@ -63,6 +62,15 @@ logger = logging.getLogger(__name__)
 
 
 def _draw_line(spec: Dict[str, Any]) -> str:
+    """Draw a line entity from start to end point.
+
+    Args:
+        spec: Entity spec with keys: start (str), end (str),
+            color (str, optional), layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created line.
+    """
     validated = DrawLineRequest(
         start=parse_coordinate(spec["start"]),
         end=parse_coordinate(spec["end"]),
@@ -81,6 +89,15 @@ def _draw_line(spec: Dict[str, Any]) -> str:
 
 
 def _draw_circle(spec: Dict[str, Any]) -> str:
+    """Draw a circle entity with center and radius.
+
+    Args:
+        spec: Entity spec with keys: center (str), radius (float),
+            color (str, optional), layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created circle.
+    """
     validated = DrawCircleRequest(
         center=parse_coordinate(spec["center"]),
         radius=spec["radius"],
@@ -99,6 +116,16 @@ def _draw_circle(spec: Dict[str, Any]) -> str:
 
 
 def _draw_arc(spec: Dict[str, Any]) -> str:
+    """Draw an arc entity with center, radius, and angle range.
+
+    Args:
+        spec: Entity spec with keys: center (str), radius (float),
+            start_angle (float), end_angle (float),
+            color (str, optional), layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created arc.
+    """
     validated = DrawArcRequest(
         center=parse_coordinate(spec["center"]),
         radius=spec["radius"],
@@ -121,6 +148,15 @@ def _draw_arc(spec: Dict[str, Any]) -> str:
 
 
 def _draw_rectangle(spec: Dict[str, Any]) -> str:
+    """Draw a rectangle from two corner points.
+
+    Args:
+        spec: Entity spec with keys: corner1 (str), corner2 (str),
+            color (str, optional), layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created rectangle.
+    """
     validated = DrawRectangleRequest(
         corner1=parse_coordinate(spec["corner1"]),
         corner2=parse_coordinate(spec["corner2"]),
@@ -139,6 +175,16 @@ def _draw_rectangle(spec: Dict[str, Any]) -> str:
 
 
 def _draw_polyline(spec: Dict[str, Any]) -> str:
+    """Draw a polyline from a sequence of points.
+
+    Args:
+        spec: Entity spec with keys: points (str, pipe or semicolon separated),
+            closed (bool, optional), color (str, optional),
+            layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created polyline.
+    """
     points_str = spec["points"]
     point_list = [parse_coordinate(p.strip()) for p in points_str.split("|")]
     validated = DrawPolylineRequest(
@@ -159,6 +205,16 @@ def _draw_polyline(spec: Dict[str, Any]) -> str:
 
 
 def _draw_text(spec: Dict[str, Any]) -> str:
+    """Draw a text entity at a given position.
+
+    Args:
+        spec: Entity spec with keys: position (str), text (str),
+            height (float, optional), rotation (float, optional),
+            color (str, optional), layer (str, optional).
+
+    Returns:
+        Entity handle string for the created text entity.
+    """
     validated = DrawTextRequest(
         position=parse_coordinate(spec["position"]),
         text=spec["text"],
@@ -179,6 +235,16 @@ def _draw_text(spec: Dict[str, Any]) -> str:
 
 
 def _draw_spline(spec: Dict[str, Any]) -> str:
+    """Draw a spline curve through a sequence of points.
+
+    Args:
+        spec: Entity spec with keys: points (str, pipe or semicolon separated),
+            closed (bool, optional), degree (int, optional),
+            color (str, optional), layer (str, optional), lineweight (int, optional).
+
+    Returns:
+        Entity handle string for the created spline.
+    """
     points_str = spec["points"]
     point_list = [parse_coordinate(p.strip()) for p in points_str.split("|")]
     validated = DrawSplineRequest(
@@ -201,12 +267,21 @@ def _draw_spline(spec: Dict[str, Any]) -> str:
 
 
 def _add_dimension(spec: Dict[str, Any]) -> str:
+    """Add a linear dimension between two points.
+
+    Args:
+        spec: Entity spec with keys: start (str), end (str),
+            text (str, optional), layer (str, optional),
+            color (str, optional), offset (float, optional).
+
+    Returns:
+        Entity handle string for the created dimension.
+    """
     start_pt = parse_coordinate(spec["start"])
     end_pt = parse_coordinate(spec["end"])
     return get_current_adapter().add_dimension(
         start_pt,
         end_pt,
-        None,
         spec.get("text"),
         spec.get("layer", "0"),
         spec.get("color", "white"),

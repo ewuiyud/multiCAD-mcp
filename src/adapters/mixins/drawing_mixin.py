@@ -70,10 +70,18 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a line.
+        """Draw a line between two points via COM AddLine().
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            start: Start coordinate as (x, y) or (x, y, z).
+            end: End coordinate as (x, y) or (x, y, z).
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created line entity.
         """
         document = self._get_document("draw_line")
 
@@ -104,10 +112,21 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a circle.
+        """Draw a circle via COM AddCircle().
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            center: Centre coordinate as (x, y) or (x, y, z).
+            radius: Circle radius in drawing units. Must be positive.
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created circle entity.
+
+        Raises:
+            InvalidParameterError: If ``radius`` is not positive.
         """
         document = self._get_document("draw_circle")
 
@@ -140,10 +159,20 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw an arc.
+        """Draw an arc via COM AddArc().
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            center: Centre coordinate as (x, y) or (x, y, z).
+            radius: Arc radius in drawing units.
+            start_angle: Start angle in degrees (0 = East, counter-clockwise).
+            end_angle: End angle in degrees.
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created arc entity.
         """
         document = self._get_document("draw_arc")
 
@@ -176,10 +205,18 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a rectangle from two corners.
+        """Draw a rectangle from two opposite corner coordinates via a closed polyline.
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            corner1: First corner coordinate as (x, y) or (x, y, z).
+            corner2: Opposite corner coordinate as (x, y) or (x, y, z).
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created polyline entity.
         """
         self._validate_connection()
         pt1 = CADInterface.normalize_coordinate(corner1)
@@ -213,10 +250,21 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a polyline through points.
+        """Draw a polyline through a sequence of points via COM AddPolyline().
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            points: Ordered list of at least 2 coordinates, each as (x, y) or (x, y, z).
+            closed: When True, close the polyline back to the first point.
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created polyline entity.
+
+        Raises:
+            InvalidParameterError: If fewer than 2 points are provided.
         """
         document = self._get_document("draw_polyline")
 
@@ -252,7 +300,20 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw an ellipse."""
+        """Draw an ellipse via COM AddEllipse().
+
+        Args:
+            center: Centre coordinate as (x, y) or (x, y, z).
+            major_axis_end: End point of the major axis, relative to the centre.
+            minor_axis_ratio: Ratio of the minor axis to the major axis (0 < ratio <= 1).
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created ellipse entity.
+        """
         document = self._get_document("draw_ellipse")
 
         center_pt = CADInterface.normalize_coordinate(center)
@@ -285,10 +346,19 @@ class DrawingMixin:
         color: str | int = "white",
         _skip_refresh: bool = False,
     ) -> str:
-        """Add text to drawing.
+        """Add a single-line text entity to the drawing via COM AddText().
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            position: Insertion point as (x, y) or (x, y, z).
+            text: Text string to display.
+            height: Text height in drawing units (default: 2.5).
+            rotation: Rotation angle in degrees, measured counter-clockwise (default: 0.0).
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created text entity.
         """
         document = self._get_document("draw_text")
 
@@ -317,7 +387,19 @@ class DrawingMixin:
         color: str | int = "white",
         layer: str = "0",
     ) -> str:
-        """Create a hatch (filled area)."""
+        """Create a hatch (filled area) bounded by a closed polyline via COM AddHatch().
+
+        Args:
+            boundary_points: Ordered list of coordinates defining the boundary polygon.
+            pattern: Hatch pattern name (e.g. ``"SOLID"``, ``"ANSI31"``). Default: ``"SOLID"``.
+            scale: Hatch pattern scale factor (default: 1.0).
+            angle: Hatch pattern angle in degrees (default: 0.0).
+            color: Color name or ACI index (default: ``"white"``).
+            layer: Layer name for the entity (default: ``"0"``).
+
+        Returns:
+            Handle string of the created hatch entity.
+        """
         document = self._get_document("draw_hatch")
 
         # Create boundary polyline (invisible)
@@ -349,7 +431,6 @@ class DrawingMixin:
         self,
         start: Coordinate,
         end: Coordinate,
-        text_position: Optional[Coordinate] = None,
         text: Optional[str] = None,
         layer: str = "0",
         color: str | int = "white",
@@ -361,7 +442,6 @@ class DrawingMixin:
         Args:
             start: Start point of the dimension
             end: End point of the dimension
-            text_position: Position for dimension text (optional)
             text: Custom dimension text (optional)
             layer: Layer name
             color: Color name or index
@@ -431,7 +511,23 @@ class DrawingMixin:
         lineweight: int = 0,
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a spline curve through points."""
+        """Draw a NURBS spline curve through the given control points via COM AddSpline().
+
+        Args:
+            points: Ordered list of at least 2 control-point coordinates.
+            closed: When True, close the spline back to the first point.
+            degree: Polynomial degree of the spline (1, 2, or 3). Default: 3.
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            lineweight: Line weight in hundredths of mm; 0 uses default.
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created spline entity.
+
+        Raises:
+            InvalidParameterError: If fewer than 2 points are provided or degree is outside 1–3.
+        """
         document = self._get_document("draw_spline")
 
         if len(points) < 2:
@@ -472,13 +568,27 @@ class DrawingMixin:
         leader_type: str = "line_with_arrow",
         _skip_refresh: bool = False,
     ) -> str:
-        """Draw a leader (dimension leader line) with optional text annotation.
+        """Draw a leader line with an optional text annotation via draw_mleader().
 
-        NOTE: Internally uses MLeader for proper text rendering.
-        A single leader line is created as a multi-leader with one arrow.
+        Internally delegates to :meth:`draw_mleader` so that text is always
+        rendered correctly.  A single leader is created as a multi-leader with
+        one arrow group.
 
         Args:
-            _skip_refresh: Internal flag to skip view refresh (used for batch operations)
+            points: At least 2 coordinates defining the leader line (arrow to text).
+            text: Optional annotation text to attach at the base point.
+            text_height: Text height in drawing units (default: 2.5).
+            layer: Layer name for the entity (default: ``"0"``).
+            color: Color name or ACI index (default: ``"white"``).
+            leader_type: Arrow style — one of ``"line_with_arrow"``, ``"line_no_arrow"``,
+                ``"spline_with_arrow"``, ``"spline_no_arrow"`` (default: ``"line_with_arrow"``).
+            _skip_refresh: Internal flag to skip view refresh (used for batch operations).
+
+        Returns:
+            Handle string of the created MLeader entity.
+
+        Raises:
+            InvalidParameterError: If fewer than 2 points are provided or leader_type is invalid.
         """
         if len(points) < 2:
             raise InvalidParameterError("points", points, "at least 2 points")
@@ -508,7 +618,7 @@ class DrawingMixin:
         # For MLeader, base_point is where text goes (usually first point)
         # and leader_groups contains the line points
         base_point = normalized_points[0]
-        leader_group = normalized_points  # Include all points in the leader line
+        leader_group: Any = normalized_points  # Include all points in the leader line
 
         # Use draw_mleader internally with a single group
         # This ensures text is always rendered correctly
@@ -639,7 +749,8 @@ class DrawingMixin:
                 try:
                     # Force Regen to ensure handle is recognized
                     try:
-                        self.document.Regen(1)  # acAllViewports = 1
+                        doc = self._get_document("draw_mleader")
+                        doc.Regen(1)  # acAllViewports = 1
                     except:
                         pass
 
@@ -667,7 +778,8 @@ class DrawingMixin:
                         f"Adding {len(leader_groups) - 1} extra arrows via command: {full_cmd}"
                     )
 
-                    self.document.SendCommand(full_cmd)
+                    doc = self._get_document("draw_mleader")
+                    doc.SendCommand(full_cmd)
 
                 except Exception as e:
                     logger.error(f"Failed to add extra arrows via command: {e}")

@@ -38,7 +38,16 @@ class ManipulationMixin:
     def move_entities(
         self, handles: List[str], offset_x: float, offset_y: float
     ) -> bool:
-        """Move entities by an offset."""
+        """Translate entities by the given X/Y offset via COM Move().
+
+        Args:
+            handles: List of entity handle strings to move.
+            offset_x: Displacement in the X direction (drawing units).
+            offset_y: Displacement in the Y direction (drawing units).
+
+        Returns:
+            True if at least one entity was moved successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("move_entities")
@@ -68,7 +77,17 @@ class ManipulationMixin:
     def rotate_entities(
         self, handles: List[str], center_x: float, center_y: float, angle: float
     ) -> bool:
-        """Rotate entities around a point."""
+        """Rotate entities around a specified centre point via COM Rotate().
+
+        Args:
+            handles: List of entity handle strings to rotate.
+            center_x: X coordinate of the rotation centre (drawing units).
+            center_y: Y coordinate of the rotation centre (drawing units).
+            angle: Rotation angle in degrees (counter-clockwise positive).
+
+        Returns:
+            True if at least one entity was rotated successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("rotate_entities")
@@ -97,7 +116,17 @@ class ManipulationMixin:
     def scale_entities(
         self, handles: List[str], center_x: float, center_y: float, scale_factor: float
     ) -> bool:
-        """Scale entities around a point."""
+        """Scale entities uniformly around a specified centre point via COM ScaleEntity().
+
+        Args:
+            handles: List of entity handle strings to scale.
+            center_x: X coordinate of the scale base point (drawing units).
+            center_y: Y coordinate of the scale base point (drawing units).
+            scale_factor: Uniform scale factor (e.g. 2.0 doubles the size).
+
+        Returns:
+            True if at least one entity was scaled successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("scale_entities")
@@ -122,7 +151,14 @@ class ManipulationMixin:
             return False
 
     def copy_entities(self, handles: List[str]) -> bool:
-        """Copy entities to clipboard using SendCommand."""
+        """Copy the specified entities to the CAD clipboard via the COPY SendCommand.
+
+        Args:
+            handles: List of entity handle strings to copy.
+
+        Returns:
+            True if the copy command was issued successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("copy_entities")
@@ -153,7 +189,16 @@ class ManipulationMixin:
             return False
 
     def paste_entities(self, base_point_x: float, base_point_y: float) -> List[str]:
-        """Paste entities from clipboard."""
+        """Paste previously copied entities from the CAD clipboard via SendCommand.
+
+        Args:
+            base_point_x: X coordinate of the paste base point (drawing units).
+            base_point_y: Y coordinate of the paste base point (drawing units).
+
+        Returns:
+            List of new entity handle strings. Currently always returns an empty list
+            because pasted entity handles cannot be reliably tracked via COM.
+        """
         try:
             self._validate_connection()
             document = self._get_document("paste_entities")
@@ -176,7 +221,15 @@ class ManipulationMixin:
             return []
 
     def change_entity_color(self, handles: List[str], color: str | int) -> bool:
-        """Change color of entities."""
+        """Change the color of the specified entities via COM.
+
+        Args:
+            handles: List of entity handle strings to recolor.
+            color: New color as a name (e.g. ``"red"``) or ACI index (1–255).
+
+        Returns:
+            True if at least one entity's color was changed, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("change_entity_color")
@@ -201,7 +254,17 @@ class ManipulationMixin:
             return False
 
     def change_entity_layer(self, handles: List[str], layer_name: str) -> bool:
-        """Move entities to a different layer."""
+        """Move the specified entities to a different layer via COM.
+
+        Creates the target layer if it does not already exist.
+
+        Args:
+            handles: List of entity handle strings to reassign.
+            layer_name: Name of the destination layer.
+
+        Returns:
+            True if at least one entity's layer was changed, False otherwise.
+        """
         try:
             self._validate_connection()
             document = self._get_document("change_entity_layer")
@@ -239,7 +302,21 @@ class ManipulationMixin:
         row_spacing: float,
         column_spacing: float,
     ) -> List[str]:
-        """Create a rectangular array of entities."""
+        """Create a rectangular grid of copies of the specified entities.
+
+        The original entities remain at row 0, column 0. Copies are created for
+        all other grid positions.
+
+        Args:
+            handles: List of entity handle strings to array.
+            rows: Number of rows in the grid.
+            columns: Number of columns in the grid.
+            row_spacing: Distance between rows (drawing units, Y direction).
+            column_spacing: Distance between columns (drawing units, X direction).
+
+        Returns:
+            List of handle strings for the newly created copy entities.
+        """
         try:
             self._validate_connection()
             document = self._get_document("create_rectangular_array")
@@ -299,7 +376,22 @@ class ManipulationMixin:
         angle_to_fill: float = 360.0,
         rotate_items: bool = True,
     ) -> List[str]:
-        """Create a polar (circular) array of entities."""
+        """Create a circular array of copies of the specified entities around a centre.
+
+        The original entities remain at their position (angle 0). Copies are placed
+        at evenly-spaced angular intervals within ``angle_to_fill``.
+
+        Args:
+            handles: List of entity handle strings to array.
+            center_x: X coordinate of the array centre (drawing units).
+            center_y: Y coordinate of the array centre (drawing units).
+            count: Total number of items in the array (including the original).
+            angle_to_fill: Total arc angle to distribute copies over (default: 360.0°).
+            rotate_items: When True, each copy is also rotated to face outward.
+
+        Returns:
+            List of handle strings for the newly created copy entities.
+        """
         try:
             self._validate_connection()
             document = self._get_document("create_polar_array")
@@ -359,7 +451,21 @@ class ManipulationMixin:
         count: int,
         align_items: bool = True,
     ) -> List[str]:
-        """Create an array of entities along a path."""
+        """Create copies of entities distributed evenly along a polyline path.
+
+        The original entities remain at their position. Copies are interpolated
+        along the path defined by ``path_points``.
+
+        Args:
+            handles: List of entity handle strings to array.
+            path_points: Ordered list of 2-D or 3-D points defining the path.
+            count: Total number of items in the array (including the original).
+            align_items: When True, each copy is rotated to align with the local
+                path direction.
+
+        Returns:
+            List of handle strings for the newly created copy entities.
+        """
         try:
             self._validate_connection()
             document = self._get_document("create_path_array")

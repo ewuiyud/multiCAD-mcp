@@ -14,8 +14,13 @@ import webbrowser
 from typing import Optional, Dict, Any, Callable, List, Tuple
 
 
-from core import get_supported_cads, CADConnectionError
-from adapters.adapter_manager import get_cad_instances, get_adapter, shutdown_all, auto_detect_cad
+from core import get_supported_cads, CADConnectionError, get_config
+from adapters.adapter_manager import (
+    get_cad_instances,
+    get_adapter,
+    shutdown_all,
+    auto_detect_cad,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +39,18 @@ def _refresh_cache_safe():
 
 
 def _connect(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Connect to a running or launchable CAD application.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     try:
         adapter = get_adapter(only_if_running=False)
         from adapters.adapter_manager import get_active_cad_type
+
         cad_type = get_active_cad_type()
         logger.info(f"Connected to {cad_type}")
         _refresh_cache_safe()
@@ -46,6 +60,14 @@ def _connect(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _disconnect(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Disconnect from the active CAD application.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     try:
         shutdown_all()
         _refresh_cache_safe()
@@ -56,6 +78,14 @@ def _disconnect(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _status(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the current connection status for all CAD instances.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), status (dict mapping cad type to status string).
+    """
     instances = get_cad_instances()
     if instances:
         return {"success": True, "status": {k: "connected" for k in instances.keys()}}
@@ -63,11 +93,27 @@ def _status(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _list_supported(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the list of supported CAD application types.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), supported (list).
+    """
     supported = get_supported_cads()
     return {"success": True, "supported": list(supported)}
 
 
 def _zoom_extents(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Zoom the view to show all entities in the drawing.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     adapter = get_adapter()
     success = adapter.zoom_extents()
     return {
@@ -77,6 +123,14 @@ def _zoom_extents(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _undo(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Undo one or more recent actions.
+
+    Args:
+        spec: Operation spec with keys: count (int, optional, default 1).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     adapter = get_adapter()
     count = spec.get("count", 1)
     success = adapter.undo(count=count)
@@ -88,6 +142,14 @@ def _undo(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _redo(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Redo one or more previously undone actions.
+
+    Args:
+        spec: Operation spec with keys: count (int, optional, default 1).
+
+    Returns:
+        Dict with keys: success (bool), detail (str).
+    """
     adapter = get_adapter()
     count = spec.get("count", 1)
     success = adapter.redo(count=count)
@@ -132,27 +194,25 @@ def _check_running(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Check if any supported CAD is running without launching it."""
     auto_detect_cad(only_if_running=True)
     instances = get_cad_instances()
-    
+
     if instances:
         _refresh_cache_safe()
         return {
             "success": True,
             "any_running": True,
-            "running_cad_types": list(instances.keys())
+            "running_cad_types": list(instances.keys()),
         }
-    
-    return {
-        "success": True,
-        "any_running": False,
-        "running_cad_types": []
-    }
+
+    return {"success": True, "any_running": False, "running_cad_types": []}
 
 
 def _open_dashboard(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Open the web dashboard in the default browser."""
-    import webbrowser
-    host = spec.get("host", "127.0.0.1")
-    port = spec.get("port", 8000)
+    # import webbrowser
+
+    config = get_config()
+    host = spec.get("host", config.dashboard.host)
+    port = spec.get("port", config.dashboard.port)
     url = f"http://{host}:{port}"
     try:
         webbrowser.open(url)
@@ -180,6 +240,16 @@ SESSION_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
 def _validate_required_fields(
     spec: Dict[str, Any], required: List[str], action: str
 ) -> Optional[str]:
+    """Validate that required fields are present in spec.
+
+    Args:
+        spec: Operation spec dict to validate.
+        required: List of field names that must be present.
+        action: Action name used in the error message.
+
+    Returns:
+        Error message string if any fields are missing, otherwise None.
+    """
     missing = [f for f in required if f not in spec]
     if missing:
         return f"'{action}' requires fields: {', '.join(missing)}"
@@ -222,7 +292,7 @@ def register_session_tools(mcp):
                 - redo:           [count] (default count: 1)
 
                 Dashboard:
-                - open_dashboard: [host, port] — open web dashboard in browser (default: 127.0.0.1:8000)
+                - open_dashboard: [host, port] — open web dashboard in browser (default from config.json)
 
                 Example:
                 [

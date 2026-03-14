@@ -1,0 +1,92 @@
+site_name: multiCAD-mcp
+site_description: MCP server for natural language control of CAD applications (AutoCAD, ZWCAD, GstarCAD, BricsCAD) via Windows COM
+site_url: https://ancode666.github.io/multiCAD-mcp
+repo_url: https://github.com/ancode666/multiCAD-mcp
+repo_name: AnCode666/multiCAD-mcp
+copyright: Apache-2.0
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            docstring_section_style: spacy
+            members_order: source
+            show_signature_annotations: true
+            separate_signature: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: README.md
+  - Getting Started: 01-SETUP.md
+  - Architecture: 02-ARCHITECTURE.md
+  - Web Dashboard: 06-WEB-DASHBOARD.md
+  - API Reference:
+      - Overview: api/index.md
+      - AutoCAD Adapter: api/adapter.md
+      - Adapter Manager: api/adapter_manager.md
+      - Mixins:
+          - Connection: api/mixins/connection.md
+          - Drawing: api/mixins/drawing.md
+          - Export: api/mixins/export.md
+          - Layer: api/mixins/layer.md
+          - Block: api/mixins/block.md
+          - Manipulation: api/mixins/manipulation.md
+          - Selection: api/mixins/selection.md
+          - File: api/mixins/file.md
+          - View: api/mixins/view.md
+          - Entity: api/mixins/entity.md
+          - Utility: api/mixins/utility.md
+      - MCP Tools: api/tools.md
+      - Core: api/core.md
+  - Reference: 05-REFERENCE.md
+  - Troubleshooting: 04-TROUBLESHOOTING.md
+  - Changelog: 07-CHANGELOG.md

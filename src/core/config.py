@@ -29,11 +29,20 @@ class OutputConfig:
 
 
 @dataclass
+class DashboardConfig:
+    """Configuration for the web dashboard."""
+
+    port: int
+    host: str = "127.0.0.1"
+
+
+@dataclass
 class ServerConfig:
     """Complete server configuration."""
 
     cad: Dict[str, CADConfig]
     output: OutputConfig
+    dashboard: DashboardConfig
     logging_level: str = "INFO"
     debug: bool = False
 
@@ -129,6 +138,10 @@ class ConfigManager:
                 directory="~/Documents/multiCAD Exports",
                 format="dwg",
             ),
+            dashboard=DashboardConfig(
+                port=6666,
+                host="127.0.0.1",
+            ),
             logging_level="INFO",
             debug=False,
         )
@@ -146,16 +159,17 @@ class ConfigManager:
                     startup_wait_time=float(cad_dict.get("startup_wait_time", 20.0)),
                 )
 
-            # Parse output config
-            output_dict = config_dict.get("output", {})
-            output = OutputConfig(
-                directory=output_dict.get("directory", "./drawings"),
-                format=output_dict.get("format", "dwg"),
+            # Parse dashboard config
+            dash_dict = config_dict.get("dashboard", {})
+            dashboard = DashboardConfig(
+                port=int(dash_dict.get("port", 6666)),
+                host=dash_dict.get("host", "127.0.0.1"),
             )
 
             return ServerConfig(
                 cad=cad_configs,
                 output=output,
+                dashboard=dashboard,
                 logging_level=config_dict.get("logging_level", "INFO"),
                 debug=config_dict.get("debug", False),
             )

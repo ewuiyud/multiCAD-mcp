@@ -13,7 +13,7 @@ import logging
 from fastmcp import FastMCP
 
 from __version__ import __version__, __title__
-from core import get_supported_cads
+from core import get_supported_cads, get_config
 from mcp_tools.helpers import setup_utf8_encoding, setup_logging
 from mcp_tools.tools import (
     register_session_tools,
@@ -86,9 +86,10 @@ if __name__ == "__main__":
     import threading
     import uvicorn
 
-    # Configuration
-    host = "127.0.0.1"
-    port = 8000
+    # Configuration from config.json
+    config = get_config()
+    host = config.dashboard.host
+    port = config.dashboard.port
 
     # Autodetect transport mode:
     # - If stdin is a TTY (interactive terminal) → HTTP with dashboard
@@ -101,69 +102,6 @@ if __name__ == "__main__":
         uvicorn.run(api_app, host=host, port=port, log_level="warning")
 
     try:
-        # Start background refresher thread
-        def refresher_loop():
-            """Wait for refresh events or timeout to update the dashboard cache."""
-            from web.api import (
-                refresh_event,
-                refresh_done_event,
-                export_event,
-                export_done_event,
-                export_result,
-                refresh_dashboard_cache,
-            )
-
-            import pythoncom
-            try:
-                pythoncom.CoInitialize()
-            except Exception:
-                pass
-            
-            logger.debug("Refresher thread started")
-            while True:
-                # Wait for manual refresh, export, or 30s auto-refresh
-                e_refresh = refresh_event.wait(timeout=1.0)
-                e_export = export_event.is_set() 
-                
-                if not e_refresh and not e_export:
-                    # Periodically trigger auto-refresh (simulated by timeout logic)
-                    # We'll use a simple counter for auto-refresh if needed, 
-                    # but for now focus on manual triggers.
-                    continue
-
-                if e_refresh:
-                    logger.info("Manual dashboard refresh requested via API")
-                    refresh_event.clear()
-                    try:
-                        refresh_dashboard_cache()
-                    except Exception as e:
-                        logger.error(f"Error in background cache refresh: {e}")
-                    finally:
-                        refresh_done_event.set()
-
-                if e_export:
-                    logger.info("Excel export requested via API")
-                    export_event.clear()
-                    try:
-                        from adapters.adapter_manager import get_adapter
-                        adapter = get_adapter(only_if_running=True)
-                        if adapter:
-                            success = adapter.export_to_excel()
-                            export_result["success"] = success
-                            export_result["detail"] = "Exportado con éxito" if success else "Error al exportar"
-                        else:
-                            export_result["success"] = False
-                            export_result["detail"] = "No se encontró un adaptador CAD activo"
-                    except Exception as e:
-                        logger.error(f"Error in background export: {e}")
-                        export_result["success"] = False
-                        export_result["detail"] = f"Error: {str(e)}"
-                    finally:
-                        export_done_event.set()
-
-        refresher_thread = threading.Thread(target=refresher_loop, daemon=True)
-        refresher_thread.start()
-
         if use_stdio:
             logger.info("Starting multiCAD-MCP server in stdio mode...")
 

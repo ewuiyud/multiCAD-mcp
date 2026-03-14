@@ -4,7 +4,7 @@ Tests adapter interface implementation and context managers.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch, Mock, PropertyMock
 from src.adapters import AutoCADAdapter
 from src.core import CADInterface
 
@@ -836,8 +836,8 @@ class TestLayersInfo:
             # Verify ModelSpace was NOT accessed (optimization)
             assert not hasattr(mock_doc, "ModelSpace") or not mock_doc.ModelSpace.called
 
-    def test_get_layers_info_without_entity_data_iterates_modelspace(self):
-        """Test that get_layers_info iterates ModelSpace if entity_data not provided."""
+    def test_get_layers_info_without_entity_data_uses_selectionsets(self):
+        """Test that get_layers_info uses SelectionSets if entity_data not provided."""
         from src.adapters.autocad_adapter import AutoCADAdapter
 
         adapter = AutoCADAdapter("autocad")
@@ -845,15 +845,6 @@ class TestLayersInfo:
         with patch.object(adapter, "_validate_connection"), patch.object(
             adapter, "_get_document"
         ) as mock_get_doc:
-
-            # Mock entities in ModelSpace
-            mock_entity_1 = MagicMock()
-            mock_entity_1.Layer = "0"
-            mock_entity_2 = MagicMock()
-            mock_entity_2.Layer = "1"
-
-            mock_model_space = MagicMock()
-            mock_model_space.__iter__.return_value = iter([mock_entity_1, mock_entity_2])
 
             # Mock document with layers
             mock_layer_0 = MagicMock()
@@ -874,23 +865,45 @@ class TestLayersInfo:
 
             mock_doc = MagicMock()
             mock_doc.Layers = [mock_layer_0, mock_layer_1]
-            mock_doc.ModelSpace = mock_model_space
+            
+            # Mock SelectionSets
+            mock_ss = MagicMock()
+            # Set up count iteration: layer "0" has 1 object, layer "1" has 0 objects
+            mock_ss.Count = 1
+            
+            # Add dynamic effect so that subsequent calls to ss.Count return different counts if necessary
+            # Or just rely on ss.Count being 1 for all queries in this mock
+            type(mock_ss).Count = PropertyMock(side_effect=[1, 0])
+
+            mock_ss_coll = MagicMock()
+            mock_ss_coll.Add.return_value = mock_ss
+            mock_doc.SelectionSets = mock_ss_coll
+            
             mock_get_doc.return_value = mock_doc
 
-            # Call get_layers_info without entity_data
-            result = adapter.get_layers_info()
+            # Mock win32com and pythoncom so windows imports do not fail or complain during tests
+            import sys
+            mock_win32com = MagicMock()
+            mock_pythoncom = MagicMock()
+            mock_pythoncom.VT_ARRAY = 8192
+            mock_pythoncom.VT_I2 = 2
+            mock_pythoncom.VT_VARIANT = 12
+
+            with patch.dict('sys.modules', {'win32com.client': mock_win32com, 'pythoncom': mock_pythoncom}):
+                # Call get_layers_info without entity_data
+                result = adapter.get_layers_info()
 
             assert isinstance(result, list)
             assert len(result) == 2
 
-            # Check entity counts from ModelSpace iteration
+            # Check entity counts from SelectionSets iteration
             layer_0_info = next((l for l in result if l["Name"] == "0"), None)
             assert layer_0_info is not None
             assert layer_0_info["ObjectCount"] == 1
 
             layer_1_info = next((l for l in result if l["Name"] == "1"), None)
             assert layer_1_info is not None
-            assert layer_1_info["ObjectCount"] == 1
+            assert layer_1_info["ObjectCount"] == 0
 
 
 class TestBlockCreation:

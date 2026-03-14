@@ -6,7 +6,6 @@ Handles view operations (zoom, refresh, undo, redo).
 
 import logging
 import base64
-import tempfile
 import os
 import time
 import re
@@ -35,6 +34,9 @@ class ViewMixin:
         def _get_document(self, operation: str = "operation") -> Any: ...
         def _simulate_autocad_click(self) -> bool: ...
         def _validate_connection(self) -> None: ...
+        def resolve_export_path(
+            self, filename: str, folder_type: str = "drawings"
+        ) -> str: ...
 
     def _sanitize_command_input(self, user_input: str) -> str:
         """Sanitize input for SendCommand to prevent command injection.
@@ -238,7 +240,11 @@ class ViewMixin:
             raise Exception(f"Failed to export view: {e}")
 
     def zoom_extents(self) -> bool:
-        """Zoom to show all entities."""
+        """Zoom the active viewport to fit all drawing entities via COM.
+
+        Returns:
+            True if successful, False otherwise.
+        """
         try:
             application = self._get_application("zoom_extents")
             application.ZoomExtents()

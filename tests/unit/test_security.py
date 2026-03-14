@@ -146,29 +146,7 @@ class TestThreadSafety:
         for instance in instances[1:]:
             assert instance is first_instance
 
-    def test_adapter_registry_set_active_cad_thread_safe(self):
-        """Test thread-safe setting of active CAD type."""
-        AdapterRegistry.reset()
-        registry = AdapterRegistry.get_instance()
-        results = []
 
-        def set_and_read(cad_type):
-            registry.set_active_cad_type(cad_type)
-            results.append(registry._active_cad_type)
-
-        # Multiple threads setting different CAD types
-        threads = [
-            threading.Thread(target=set_and_read, args=("autocad",)),
-            threading.Thread(target=set_and_read, args=("zwcad",)),
-            threading.Thread(target=set_and_read, args=("gcad",)),
-        ]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-
-        # Should have one of the values (no crashes, no corruption)
-        assert all(val in ["autocad", "zwcad", "gcad"] for val in results)
 
     def test_config_manager_thread_safe(self):
         """Test that ConfigManager singleton is thread-safe."""

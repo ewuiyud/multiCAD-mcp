@@ -20,7 +20,14 @@ class EntityMixin:
         def validate_lineweight(self, weight: int) -> int: ...
 
     def delete_entity(self, handle: str) -> bool:
-        """Delete entity by handle."""
+        """Delete a drawing entity identified by its COM handle.
+
+        Args:
+            handle: The entity handle string as returned by AutoCAD COM.
+
+        Returns:
+            True if deleted successfully, False otherwise.
+        """
         try:
             document = self._get_document("delete_entity")
 
@@ -33,7 +40,15 @@ class EntityMixin:
             return False
 
     def get_entity_properties(self, handle: str) -> Dict[str, Any]:
-        """Get entity properties."""
+        """Retrieve common properties of a drawing entity via COM.
+
+        Args:
+            handle: The entity handle string as returned by AutoCAD COM.
+
+        Returns:
+            Dictionary with keys: handle, object_name, layer, color, lineweight.
+            Returns an empty dict if the entity cannot be accessed.
+        """
         try:
             document = self._get_document("get_entity_properties")
 
@@ -50,7 +65,18 @@ class EntityMixin:
             return {}
 
     def set_entity_properties(self, handle: str, properties: Dict[str, Any]) -> bool:
-        """Modify entity properties."""
+        """Modify one or more properties of a drawing entity via COM.
+
+        Supported keys in ``properties``: ``layer`` (str), ``color`` (str or int ACI
+        index), ``lineweight`` (int).
+
+        Args:
+            handle: The entity handle string as returned by AutoCAD COM.
+            properties: Dictionary of property names to new values.
+
+        Returns:
+            True if the update succeeded, False otherwise.
+        """
         try:
             document = self._get_document("set_entity_properties")
 

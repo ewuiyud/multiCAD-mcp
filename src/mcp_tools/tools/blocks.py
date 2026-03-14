@@ -29,6 +29,15 @@ logger = logging.getLogger(__name__)
 
 
 def _create(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a block from entity handles or the current selection.
+
+    Args:
+        spec: Operation spec with keys: block_name (str), entity_handles (list, optional),
+            insertion_point (str, optional), description (str, optional).
+
+    Returns:
+        Dict with keys: success (bool) and block creation details.
+    """
     adapter = get_current_adapter()
     block_name = spec["block_name"]
     insert_pt = parse_coordinate(spec.get("insertion_point", "0,0,0"))
@@ -59,6 +68,17 @@ def _create(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _insert(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Insert a block reference at a given point.
+
+    Args:
+        spec: Operation spec with keys: block_name (str), insertion_point (str),
+            scale (float, optional), rotation (float, optional),
+            layer (str, optional), color (str, optional), attributes (dict, optional).
+
+    Returns:
+        Dict with keys: success (bool), handle (str), block_name (str),
+            insertion_point (str), scale (float), rotation (float), layer (str).
+    """
     adapter = get_current_adapter()
     block_name = spec["block_name"]
     point = parse_coordinate(spec["insertion_point"])
@@ -100,6 +120,14 @@ def _insert(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _list(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """List all block definitions in the drawing.
+
+    Args:
+        spec: Operation spec (no required keys).
+
+    Returns:
+        Dict with keys: success (bool), count (int), blocks (list).
+    """
     adapter = get_current_adapter()
     blocks = adapter.list_blocks()
     result = {"success": True, "count": len(blocks), "blocks": blocks}
@@ -116,6 +144,16 @@ def _list(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _info(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Return info and/or references for a block definition.
+
+    Args:
+        spec: Operation spec with keys: block_name (str),
+            include (str, optional): 'info', 'references', or 'both'.
+
+    Returns:
+        Dict with keys: success (bool), block_name (str), and optionally
+            info (dict) and/or references (list), reference_count (int).
+    """
     adapter = get_current_adapter()
     block_name = spec["block_name"]
     include = spec.get("include", "info").lower()
@@ -140,6 +178,14 @@ def _info(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _get_attrs(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Get attribute values from a block reference.
+
+    Args:
+        spec: Operation spec with keys: handle (str).
+
+    Returns:
+        Dict with keys: success (bool), handle (str), attribute_count (int), attributes (dict).
+    """
     adapter = get_current_adapter()
     handle = spec["handle"]
     attributes = adapter.get_block_attributes(handle)
@@ -152,6 +198,14 @@ def _get_attrs(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _set_attrs(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Set attribute values on a block reference.
+
+    Args:
+        spec: Operation spec with keys: handle (str), attributes (dict or JSON str).
+
+    Returns:
+        Dict with keys: success (bool), handle (str), attributes_set (list).
+    """
     adapter = get_current_adapter()
     handle = spec["handle"]
     attrs_raw = spec["attributes"]
@@ -186,6 +240,16 @@ BLOCK_DISPATCH: Dict[str, Tuple[Callable, List[str]]] = {
 def _validate_required_fields(
     spec: Dict[str, Any], required: List[str], action: str
 ) -> Optional[str]:
+    """Validate that required fields are present in spec.
+
+    Args:
+        spec: Operation spec dict to validate.
+        required: List of field names that must be present.
+        action: Action name used in the error message.
+
+    Returns:
+        Error message string if any fields are missing, otherwise None.
+    """
     missing = [f for f in required if f not in spec]
     if missing:
         return f"'{action}' requires fields: {', '.join(missing)}"

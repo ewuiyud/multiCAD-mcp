@@ -39,6 +39,13 @@ class AdapterRegistry:
 
     @classmethod
     def get_instance(cls) -> "AdapterRegistry":
+        """Return the singleton AdapterRegistry instance, creating it if necessary.
+
+        Thread-safe via double-checked locking.
+
+        Returns:
+            The singleton AdapterRegistry instance.
+        """
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -47,6 +54,10 @@ class AdapterRegistry:
 
     @classmethod
     def reset(cls) -> None:
+        """Destroy the singleton instance, forcing re-creation on next access.
+
+        Primarily used in tests to reset state between test cases.
+        """
         cls._instance = None
 
     def get_cad_type(self) -> str:
@@ -71,30 +82,37 @@ class AdapterRegistry:
                 # We already have an adapter. Let's make sure it's connected.
                 if self._adapter.is_connected():
                     return self._adapter
-                
+
                 # It exists but is disconnected. Try to reconnect.
                 if self._adapter.connect(only_if_running=only_if_running):
                     return self._adapter
-                    
+
                 if only_if_running:
-                    raise CADConnectionError(self._cad_type or "cad", "CAD application is not running")
+                    raise CADConnectionError(
+                        self._cad_type or "cad", "CAD application is not running"
+                    )
 
             # No working adapter exists. We must auto-detect.
             self._auto_detect_internal(only_if_running=only_if_running)
-            
+
             if self._adapter is not None and self._adapter.is_connected():
                 return self._adapter
-                
-            raise CADConnectionError("cad", "Could not connect to any supported CAD application")
+
+            raise CADConnectionError(
+                "cad", "Could not connect to any supported CAD application"
+            )
 
     def _auto_detect_internal(self, only_if_running: bool = False) -> None:
         """Internal auto-detection logic within the locked context."""
         from adapters import AutoCADAdapter
+
         cad_priorities = ["zwcad", "autocad", "bricscad", "gcad"]
-        
+
         for ct in cad_priorities:
             try:
-                logger.info(f"Auto-detecting {ct} (only_if_running={only_if_running})...")
+                logger.info(
+                    f"Auto-detecting {ct} (only_if_running={only_if_running})..."
+                )
                 adapter = AutoCADAdapter(ct)
                 if adapter.connect(only_if_running=only_if_running):
                     self._adapter = adapter
@@ -112,7 +130,7 @@ class AdapterRegistry:
         Returns:
             Dictionary mapping CAD type to adapter instance
         """
-        if self._adapter and self._adapter.is_connected():
+        if self._adapter and self._adapter.is_connected() and self._cad_type:
             return {self._cad_type: self._adapter}
         return {}
 
@@ -123,7 +141,9 @@ class AdapterRegistry:
         with self._instance_lock:
             self._auto_detect_internal(only_if_running=only_if_running)
             if self._adapter is None:
-                logger.warning("No CAD application detected. Will attempt to connect on first use.")
+                logger.warning(
+                    "No CAD application detected. Will attempt to connect on first use."
+                )
 
     def shutdown_all(self) -> None:
         """
@@ -149,14 +169,14 @@ _registry = AdapterRegistry.get_instance()
 
 
 # Module-level convenience functions
-def get_active_cad_type(requested_cad_type: Optional[str] = None) -> str:
-    """Convenience function - delegates to singleton registry."""
+def get_active_cad_type() -> str:
+    """Return the currently active CAD type."""
     return _registry.get_cad_type()
 
 
 def set_active_cad_type(cad_type: Optional[str]) -> None:
     """Convenience function - stubbed out for backwards compatibility."""
-    pass
+    raise NotImplementedError("Setting active CAD type manually is not supported.")
 
 
 def get_adapter(cad_type: Optional[str] = None, only_if_running: bool = False) -> Any:

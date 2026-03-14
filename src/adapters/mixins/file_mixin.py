@@ -22,6 +22,9 @@ class FileMixin:
         def _get_document(self, operation: str = "operation") -> Any: ...
         def _get_application(self, operation: str = "operation") -> Any: ...
         def _validate_document(self) -> bool: ...
+        def resolve_export_path(
+            self, filename: str, folder_type: str = "drawings"
+        ) -> str: ...
 
     def save_drawing(
         self, filepath: str = "", filename: str = "", format: str = "dwg"
@@ -85,7 +88,14 @@ class FileMixin:
             return False
 
     def open_drawing(self, filepath: str) -> bool:
-        """Open a drawing file."""
+        """Open a drawing file in the CAD application via COM.
+
+        Args:
+            filepath: Absolute path to the drawing file to open (e.g. ``C:/drawings/plan.dwg``).
+
+        Returns:
+            True if the file was opened successfully, False otherwise.
+        """
         try:
             application = self._get_application("open_drawing")
             self.document = application.Documents.Open(filepath)
@@ -96,7 +106,11 @@ class FileMixin:
             return False
 
     def new_drawing(self) -> bool:
-        """Create new blank drawing."""
+        """Create a new blank drawing document in the CAD application via COM.
+
+        Returns:
+            True if the document was created successfully, False otherwise.
+        """
         try:
             application = self._get_application("new_drawing")
             self.document = application.Documents.Add()
@@ -186,17 +200,18 @@ class FileMixin:
                         application.ActiveDocument = doc
                     except Exception:
                         pass
-                    
+
                     self.document = doc
-                    
+
                     # Pump Windows messages briefly to let CAD process the GUI switch
                     try:
                         import pythoncom
+
                         for _ in range(5):
                             pythoncom.PumpWaitingMessages()
                     except ImportError:
                         pass
-                    
+
                     logger.info(f"Switched to drawing: {drawing_name}")
                     return True
 

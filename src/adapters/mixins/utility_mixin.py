@@ -111,13 +111,13 @@ class SelectionSetManager:
         logger.debug(f"Created SelectionSet: {self.name}")
         return self.selection_set
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
         """Cleanup SelectionSet on exit.
 
         Args:
-            exc_type: Exception type if raised
-            exc_val: Exception value if raised
-            exc_tb: Exception traceback if raised
+            _exc_type: Exception type if raised
+            _exc_val: Exception value if raised
+            _exc_tb: Exception traceback if raised
         """
         try:
             if self.selection_set:
@@ -177,30 +177,38 @@ class UtilityMixin:
         document: Any
         application: Any
         _drawing_state: dict
+        cad_type: str
 
         def is_connected(self) -> bool: ...
         def validate_lineweight(self, weight: int) -> int: ...
 
     def _validate_connection(self) -> None:
         """Check if connection is still alive, otherwise reconnect.
-        
+
         Is thread-safe: each thread will have its own proxy via self._local.
         """
         import threading
+
         if self.application is None:
             from .connection_mixin import ConnectionMixin
+
             if isinstance(self, ConnectionMixin):
                 self.connect(only_if_running=True)
             else:
-                logger.warning("_validate_connection: application is None and self is not ConnectionMixin")
+                logger.warning(
+                    "_validate_connection: application is None and self is not ConnectionMixin"
+                )
                 return
 
         try:
             # Simple ping to verify COM proxy is still valid for THIS thread
             _ = self.application.Visible
         except Exception as e:
-            logger.debug(f"Connection validation failed (thread {threading.get_ident()}): {e}")
+            logger.debug(
+                f"Connection validation failed (thread {threading.get_ident()}): {e}"
+            )
             from .connection_mixin import ConnectionMixin
+
             if isinstance(self, ConnectionMixin):
                 self.connect(only_if_running=True)
 
@@ -209,13 +217,16 @@ class UtilityMixin:
         self._validate_connection()
         if self.application is None:
             from core import CADConnectionError
-            raise CADConnectionError(f"No active {self.cad_type} instance for {operation}")
+
+            raise CADConnectionError(
+                self.cad_type, f"No active instance for '{operation}'"
+            )
         return self.application
 
     def _get_document(self, operation: str = "operation") -> Any:
         """Helper to ensure document is available for an operation."""
         self._validate_connection()
-        
+
         if self.document is None:
             # Try to grab ActiveDocument if it's missing in this thread
             app = self._get_application(operation)
@@ -224,12 +235,20 @@ class UtilityMixin:
             except Exception as e:
                 logger.error(f"Failed to get ActiveDocument for {operation}: {e}")
                 from core import CADConnectionError
-                raise CADConnectionError(f"No active document for {operation}")
+
+                raise CADConnectionError(
+                    getattr(self, "cad_type", "unknown"),
+                    f"No active document for '{operation}'",
+                )
 
         if self.document is None:
-             from core import CADConnectionError
-             raise CADConnectionError(f"No active document for {operation}")
-             
+            from core import CADConnectionError
+
+            raise CADConnectionError(
+                getattr(self, "cad_type", "unknown"),
+                f"No active document for '{operation}'",
+            )
+
         return self.document
 
     def _wait_for(

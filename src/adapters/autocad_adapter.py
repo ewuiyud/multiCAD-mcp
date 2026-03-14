@@ -60,7 +60,7 @@ class AutoCADAdapter(
     CADInterface,
 ):
     """Adapter for controlling AutoCAD via COM interface.
-    
+
     [... docstring truncated for brevity ...]
     """
 
@@ -72,10 +72,10 @@ class AutoCADAdapter(
         """
         self.cad_type = cad_type.lower()
         self.config = get_cad_config(self.cad_type)
-        
+
         # Thread-local storage for COM objects to prevent cross-thread RPC errors
         self._local = threading.local()
-        
+
         self._drawing_state: Dict[str, Any] = {
             "entities": [],
             "current_layer": "0",

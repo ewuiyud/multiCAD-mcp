@@ -94,7 +94,14 @@ class SelectionMixin:
             return []
 
     def select_by_color(self, color: str | int) -> List[str]:
-        """Select all entities of a specific color."""
+        """Select all entities matching the given color and return their handles.
+
+        Args:
+            color: Color name (e.g. ``"red"``) or ACI index (1–255).
+
+        Returns:
+            List of entity handle strings for matching entities.
+        """
         if isinstance(color, str):
             color = self._get_color_index(color)
 
@@ -106,7 +113,14 @@ class SelectionMixin:
         )
 
     def select_by_layer(self, layer_name: str) -> List[str]:
-        """Select all entities on a specific layer."""
+        """Select all entities residing on the specified layer and return their handles.
+
+        Args:
+            layer_name: Exact layer name (case-insensitive comparison is used).
+
+        Returns:
+            List of entity handle strings for entities on the given layer.
+        """
         target_layer = layer_name.strip()
 
         def layer_filter(entity: Any) -> bool:
@@ -133,7 +147,17 @@ class SelectionMixin:
         )
 
     def select_by_type(self, entity_type: str) -> List[str]:
-        """Select all entities of a specific type."""
+        """Select all entities of a given type and return their handles.
+
+        Accepts user-friendly names (``"line"``, ``"circle"``, ``"arc"``,
+        ``"polyline"``, ``"text"``, ``"point"``) or raw AutoCAD ObjectName strings.
+
+        Args:
+            entity_type: Entity type name (user-friendly or AutoCAD ObjectName).
+
+        Returns:
+            List of entity handle strings for matching entities.
+        """
         # Map user-friendly types to AutoCAD object names
         type_map = {
             "line": "AcDbLine",
@@ -162,7 +186,11 @@ class SelectionMixin:
         )
 
     def get_selected_entities(self) -> List[str]:
-        """Get list of currently selected entities."""
+        """Return handles of all currently selected entities via a temporary SelectionSet.
+
+        Returns:
+            List of entity handle strings. Empty list if nothing is selected or on error.
+        """
         try:
             self._validate_connection()
             app = self._get_application("get_selected_entities")
@@ -182,7 +210,11 @@ class SelectionMixin:
             return []
 
     def clear_selection(self) -> bool:
-        """Clear current selection."""
+        """Deselect all currently selected entities in the active document.
+
+        Returns:
+            True if cleared successfully, False otherwise.
+        """
         try:
             self._validate_connection()
             app = self._get_application("clear_selection")

@@ -13,17 +13,13 @@
 git clone https://github.com/AnCode666/multiCAD-mcp.git
 cd multiCAD-mcp
 
-# Virtual environment
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-
-# Dependencies
-pip install -r requirements.txt
-py -m pip install --upgrade pywin32
+# Install dependencies (creates .venv automatically)
+uv sync --dev
+uv run python -m pip install --upgrade pywin32
 
 # Verify
-pytest tests/ -v
-py src/server.py
+uv run pytest tests/ -v
+uv run python src/server.py
 ```
 
 **Note**: If you get an execution policy error:
@@ -46,7 +42,7 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-**Important**: Use full path to `.venv\Scripts\python.exe`, not system `py`.
+**Important**: Use the full path to `.venv\Scripts\python.exe` created by `uv sync`, not the system `py`.
 
 ## Project Structure
 
@@ -54,22 +50,27 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json`:
 multiCAD-mcp/
 ├── src/
 │   ├── server.py              # FastMCP entry point
-│   ├── __version__.py         # Version (0.1.2)
+│   ├── __version__.py         # Version (0.2.0)
 │   ├── config.json            # Runtime configuration
 │   ├── core/                  # Abstract interfaces
 │   │   ├── cad_interface.py   # CADInterface ABC
 │   │   ├── config.py          # ConfigManager singleton
-│   │   └── exceptions.py      # Exception hierarchy
+│   │   ├── exceptions.py      # Exception hierarchy
+│   │   └── models.py          # Data models and schemas
 │   ├── adapters/              # CAD implementations
-│   │   ├── autocad_adapter.py # Composite class (99 lines)
+│   │   ├── autocad_adapter.py # Composite class (102 lines)
 │   │   ├── adapter_manager.py # AdapterRegistry
 │   │   └── mixins/            # 11 mixin modules
-│   └── mcp_tools/             # Server infrastructure
-│       ├── constants.py       # COLOR_MAP, etc.
-│       ├── helpers.py         # Utilities
-│       ├── decorators.py      # @cad_tool
-│       └── tools/             # 7 unified tools (54 commands)
-├── tests/                     # 62 pytest tests
+│   ├── mcp_tools/             # Server infrastructure
+│   │   ├── constants.py       # COLOR_MAP, etc.
+│   │   ├── helpers.py         # Utilities
+│   │   ├── decorators.py      # @cad_tool
+│   │   ├── shorthand.py       # Command parsing logic
+│   │   ├── validator.py       # Spec validation and correction
+│   │   └── tools/             # 7 unified tools
+│   ├── ui/                    # UI resources and templates
+│   └── web/                   # Web dashboard API and static files
+├── tests/                     # 181 pytest tests
 ├── docs/                      # Documentation
 └── logs/                      # Auto-generated logs
 ```
@@ -77,11 +78,11 @@ multiCAD-mcp/
 ## Key Commands
 
 ```powershell
-pytest tests/ -v                    # Run tests
-mypy src/                           # Type check
-flake8 src/ --max-line-length 150   # Lint code
-black src/                          # Format code
-npx -y @modelcontextprotocol/inspector py src/server.py  # MCP Inspector
+uv run pytest tests/ -v                    # Run tests
+uv run mypy src/                           # Type check
+uv run ruff check src/                     # Lint code
+uv run ruff format src/                    # Format code
+npx -y @modelcontextprotocol/inspector uv run python src/server.py  # MCP Inspector
 ```
 
 ## Git Workflow
@@ -111,8 +112,8 @@ Use the following format: `<type>(<scope>): <subject>`
 1. **Type hints everywhere** - enables IDE autocomplete
 2. **Absolute imports** - `from core import X`, not `from ..core`
 3. **Log operations** - use `logger.info()` and `logger.debug()`
-4. **Test first** - add tests before committing (`pytest tests/ -v`)
-5. **Format & Lint** - run `black src/` and `mypy src/` before push
+4. **Test first** - add tests before committing (`uv run pytest tests/ -v`)
+5. **Format & Lint** - run `uv run ruff check src/` and `uv run mypy src/` before push
 
 ## Next Steps
 

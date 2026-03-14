@@ -1,8 +1,0 @@
-__version__
-adapters
-core
-mcp_tools
-server
-ui
-web
-z_legacy

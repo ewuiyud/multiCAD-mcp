@@ -40,6 +40,13 @@ class BlockMixin:
         ) -> Any: ...
 
         def refresh_view(self) -> bool: ...
+        def _apply_properties(
+            self,
+            entity: Any,
+            layer: str,
+            color: str | int,
+            lineweight: int = 0,
+        ) -> None: ...
 
     def create_block_from_entities(
         self,
@@ -276,7 +283,7 @@ class BlockMixin:
         rotation: float = 0.0,
         layer: str = "0",
         color: str = "white",
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, str] | None = None,
         _skip_refresh: bool = False,
     ) -> str:
         """Insert a block reference in the drawing.
@@ -340,14 +347,20 @@ class BlockMixin:
             self._apply_properties(block_ref, layer, color)
 
             # Set attributes if provided
-            if attributes and hasattr(block_ref, "HasAttributes") and block_ref.HasAttributes:
+            if (
+                attributes
+                and hasattr(block_ref, "HasAttributes")
+                and block_ref.HasAttributes
+            ):
                 try:
                     attr_lookup = {k.upper(): v for k, v in attributes.items()}
                     for attr in block_ref.GetAttributes():
                         tag_upper = str(attr.TagString).upper()
                         if tag_upper in attr_lookup:
                             attr.TextString = str(attr_lookup[tag_upper])
-                            logger.debug(f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}")
+                            logger.debug(
+                                f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}"
+                            )
                 except Exception as e:
                     logger.warning(f"Failed to set some attributes: {e}")
 
@@ -398,12 +411,12 @@ class BlockMixin:
             logger.error(f"Failed to list blocks: {e}")
             return []
 
-    def get_block_counts(self, block_names: List[str] = None) -> Dict[str, int]:
+    def get_block_counts(self, block_names: List[str] | None = None) -> Dict[str, int]:
         """Get instant counts of block insertions using SelectionSets.
-        
+
         Args:
             block_names: Optional list of specific blocks to count. If None, counts all blocks.
-            
+
         Returns:
             Dictionary mapping block names to insertion counts
         """
@@ -411,17 +424,17 @@ class BlockMixin:
         import pythoncom
         import win32com.client
         from contextlib import contextmanager
-        
+
         try:
             self._validate_connection()
             document = self._get_document("get_block_counts")
-            
+
             if block_names is None:
                 block_names = self.list_blocks()
-                
+
             block_counts = {}
             perf_start = time.perf_counter()
-            
+
             @contextmanager
             def _temp_ss(doc, name):
                 try:
@@ -436,30 +449,32 @@ class BlockMixin:
                         ss.Delete()
                     except:
                         pass
-                        
+
             def to_variant_array(types, values):
                 return win32com.client.VARIANT(types, values)
-                
+
             # Filter by 0="INSERT" and 2="BlockName"
             ft = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_I2, [0, 2])
-            
+
             with _temp_ss(document, "MCP_BLOCK_COUNTS") as ss:
                 for bname in block_names:
-                    fd = to_variant_array(pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, ["INSERT", bname])
+                    fd = to_variant_array(
+                        pythoncom.VT_ARRAY | pythoncom.VT_VARIANT, ["INSERT", bname]
+                    )
                     try:
                         ss.Clear()
-                        ss.Select(5, None, None, ft, fd) # 5 = acSelectionSetAll
+                        ss.Select(5, None, None, ft, fd)  # 5 = acSelectionSetAll
                         count = ss.Count
                         if count > 0:
                             block_counts[bname] = count
                     except Exception as e:
                         logger.debug(f"Failed to count block {bname}: {e}")
-                        
+
             elapsed = time.perf_counter() - perf_start
             logger.info(f"[PERF] Block counting via SelectionSets took {elapsed:.3f}s")
-            
+
             return block_counts
-            
+
         except Exception as e:
             logger.error(f"Failed to get block counts: {e}")
             return {}
@@ -647,7 +662,9 @@ class BlockMixin:
                 if tag_upper in attr_lookup:
                     attr.TextString = str(attr_lookup[tag_upper])
                     set_count += 1
-                    logger.debug(f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}")
+                    logger.debug(
+                        f"Set attribute {attr.TagString} = {attr_lookup[tag_upper]}"
+                    )
 
             self.refresh_view()
             logger.info(f"Set {set_count} attributes on block {handle}")

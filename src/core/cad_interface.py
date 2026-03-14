@@ -320,7 +320,6 @@ class CADInterface(ABC):
         self,
         start: Coordinate,
         end: Coordinate,
-        text_position: Optional[Coordinate] = None,
         text: Optional[str] = None,
         layer: str = "0",
         color: str | int = "white",
@@ -332,7 +331,6 @@ class CADInterface(ABC):
         Args:
             start: Start point
             end: End point
-            text_position: Optional position for dimension text
             text: Optional custom text
             layer: Layer name
             color: Color name or index

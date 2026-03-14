@@ -16,10 +16,10 @@
 
 ```powershell
 # Reinstall pywin32
-py -m pip install --upgrade pywin32
+uv run python -m pip install --upgrade pywin32
 
 # Verify COM
-python -c "import win32com.client; print('OK')"
+uv run python -c "import win32com.client; print('OK')"
 ```
 
 - Ensure CAD is running
@@ -32,9 +32,17 @@ Normal on startup - server auto-connects on first tool call.
 If it fails:
 1. Check CAD is running
 2. Restart CAD
-3. Use `connect_cad` tool
+3. Use `manage_session` with `{"action": "connect"}`
 
 ## Operation Failures
+
+### Workflow
+
+### Before Committing
+1. `uv run pytest tests/ -v` - All 181 tests must pass
+2. `uv run ruff format src/` - Format
+3. `uv run ruff check src/` - Lint
+4. `uv run mypy src/` - Type check (must be clean)
 
 ### Drawing not visible
 
@@ -75,13 +83,19 @@ Edit `src/config.json`:
 
 View logs:
 ```powershell
-Get-Content logs/multicad_mcp.log -Tail 50
-```
+# Setup
+uv sync --dev
+uv run python -m pip install --upgrade pywin32
 
-### MCP Inspector
+# Run
+uv run python src/server.py
 
-```powershell
-npx -y @modelcontextprotocol/inspector py src/server.py
+# Test
+uv run pytest tests/ -v                      # 181 tests
+npx -y @modelcontextprotocol/inspector uv run python src/server.py
+
+# Quality
+uv run ruff format src/ && uv run ruff check src/ && uv run mypy src/
 ```
 
 Browse to `http://localhost:3000` to test tools interactively.
@@ -100,8 +114,8 @@ print(f"Connected: {adapter.is_connected()}")
 ### ModuleNotFoundError
 
 ```powershell
-pip install -r requirements.txt
-py -m pip install --upgrade pywin32
+uv sync --dev
+uv run python -m pip install --upgrade pywin32
 ```
 
 ### Execution policy error
