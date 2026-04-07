@@ -28,7 +28,11 @@ logs/multicad_mcp.log
 
 # Local configuration
 config.local.json
+config_port*.json
 .env
+
+# Claude Code
+.claude/
 
 # OS
 Thumbs.db
