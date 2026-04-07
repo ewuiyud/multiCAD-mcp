@@ -2,6 +2,13 @@
 
 Control your CAD applications with your AI assistant through the Model Context Protocol (MCP).
 
+## Credits
+
+This project is based on [multiCAD-mcp](https://github.com/AnCode666/multiCAD-mcp) by [AnCode666](https://github.com/AnCode666), licensed under [Apache 2.0](LICENSE).
+
+### Changes made
+- Added `query_entity` MCP tool for detailed geometry extraction (coordinates, start/end points, radius, vertices, etc.) by handle.
+
 [![Documentation](https://img.shields.io/badge/docs-mkdocs--material-blue?logo=readthedocs)](https://AnCode666.github.io/multiCAD-mcp/)
 [![License](https://img.shields.io/github/license/AnCode666/multiCAD-mcp)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
