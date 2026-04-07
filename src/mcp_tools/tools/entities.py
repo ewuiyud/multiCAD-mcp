@@ -340,6 +340,35 @@ def _validate_required_fields(
 def register_entity_tools(mcp):
     """Register unified entity management tool with FastMCP."""
 
+    @cad_tool(mcp, "query_entity")
+    def query_entity(handle: str) -> str:
+        """
+        Query detailed geometry of a single entity by handle.
+
+        Args:
+            handle: Entity handle string (e.g. "A1B2C3D4"). Obtain handles via
+                    export_data or manage_entities select.
+
+        Returns:
+            JSON with success, object_type, layer, color, and type-specific geometry:
+
+            LINE      → start_point [x,y,z], end_point [x,y,z], length
+            CIRCLE    → center [x,y,z], radius
+            ARC       → center [x,y,z], radius, start_angle, end_angle, length
+            POLYLINE  → coordinates [[x,y],...], length, area, is_closed
+            SPLINE    → coordinates [[x,y,z],...], length
+            TEXT/MTEXT→ insertion_point [x,y,z], text_string
+            INSERT    → insertion_point [x,y,z], name
+
+        Example:
+            query_entity("A1B2")
+            → {"success": true, "handle": "A1B2", "object_type": "AcDbLine",
+               "start_point": [0.0, 0.0, 0.0], "end_point": [100.0, 50.0, 0.0],
+               "length": 111.803}
+        """
+        result = get_current_adapter().query_entity_geometry(handle.strip())
+        return json.dumps(result, indent=2)
+
     @cad_tool(mcp, "manage_entities")
     def manage_entities(
         operations: str,

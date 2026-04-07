@@ -824,6 +824,20 @@ class CADInterface(ABC):
         pass
 
     @abstractmethod
+    def query_entity_geometry(self, handle: str) -> Dict[str, Any]:
+        """
+        Query detailed geometry of a single entity by handle.
+
+        Args:
+            handle: Entity handle/ID
+
+        Returns:
+            Dict with success, object_type, layer, and type-specific geometry fields
+            (start_point/end_point for LINE, center/radius for CIRCLE, etc.)
+        """
+        pass
+
+    @abstractmethod
     def set_entity_properties(self, handle: str, properties: Dict[str, Any]) -> bool:
         """
         Modify entity properties.
