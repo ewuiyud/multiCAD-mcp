@@ -176,6 +176,195 @@ class EntityMixin:
             logger.error(f"Failed to query entity geometry for handle '{handle}': {e}")
             return {"success": False, "handle": handle, "error": str(e)}
 
+    def extract_texts_in_closed_polylines(
+        self, layer_name: str
+    ) -> Dict[str, Any]:
+        """Find all closed polylines on a layer and extract texts and lines within each boundary.
+
+        For each closed polyline found on ``layer_name``, performs a point-in-polygon
+        test (ray-casting) against every TEXT/MTEXT and LINE entity in ModelSpace
+        (regardless of layer) and returns results grouped by polyline region.
+
+        Line membership is decided by midpoint: a line belongs to a region when its
+        midpoint lies inside the closed boundary.
+
+        Args:
+            layer_name: Name of the layer to scan for closed polylines.
+
+        Returns:
+            Dict with keys:
+              success (bool)
+              layer (str)
+              total_regions (int)
+              regions (list) – one entry per closed polyline, each has:
+                  handle (str)
+                  object_type (str)
+                  area (float | None)
+                  texts (list) – texts whose insertion point is inside
+                  lines (list) – line segments whose midpoint is inside
+        """
+        import win32com.client
+
+        def _point_in_polygon(px: float, py: float, polygon: List[List[float]]) -> bool:
+            """Ray-casting algorithm for 2-D point-in-polygon test."""
+            n = len(polygon)
+            if n < 3:
+                return False
+            inside = False
+            x, y = px, py
+            j = n - 1
+            for i in range(n):
+                xi, yi = polygon[i][0], polygon[i][1]
+                xj, yj = polygon[j][0], polygon[j][1]
+                if ((yi > y) != (yj > y)) and (
+                    x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi
+                ):
+                    inside = not inside
+                j = i
+            return inside
+
+        try:
+            document = self._get_document("extract_texts_in_closed_polylines")
+            target_layer = layer_name.strip().lower()
+
+            closed_polylines: List[Dict[str, Any]] = []
+            text_entities: List[Dict[str, Any]] = []
+            line_entities: List[Dict[str, Any]] = []
+
+            for entity in document.ModelSpace:
+                try:
+                    obj_name = str(getattr(entity, "ObjectName", ""))
+                    entity_layer = str(getattr(entity, "Layer", "")).strip().lower()
+                    handle = str(entity.Handle)
+                    obj_upper = obj_name.upper()
+
+                    # ── closed polylines on target layer ──────────────────────
+                    if "POLY" in obj_upper and entity_layer == target_layer:
+                        dyn = win32com.client.dynamic.Dispatch(entity)
+                        if getattr(dyn, "Closed", False):
+                            coords_raw = getattr(dyn, "Coordinates", None)
+                            if coords_raw is not None:
+                                flat = [float(v) for v in coords_raw]
+                                stride = 3 if "3D" in obj_upper else 2
+                                coords = [
+                                    flat[i : i + stride]
+                                    for i in range(0, len(flat), stride)
+                                ]
+                                area_raw = getattr(dyn, "Area", None)
+                                closed_polylines.append(
+                                    {
+                                        "handle": handle,
+                                        "object_type": obj_name,
+                                        "coords": coords,
+                                        "area": float(area_raw)
+                                        if area_raw is not None
+                                        else None,
+                                    }
+                                )
+
+                    # ── text / mtext entities (any layer) ─────────────────────
+                    elif "TEXT" in obj_upper:
+                        dyn = win32com.client.dynamic.Dispatch(entity)
+                        ip_raw = getattr(dyn, "InsertionPoint", None)
+                        if ip_raw is not None:
+                            ip = [float(v) for v in ip_raw]
+                            text_str = getattr(dyn, "TextString", None) or getattr(
+                                dyn, "Contents", None
+                            )
+                            text_entities.append(
+                                {
+                                    "handle": handle,
+                                    "layer": str(getattr(entity, "Layer", "")),
+                                    "text_string": str(text_str)
+                                    if text_str is not None
+                                    else "",
+                                    "insertion_point": ip,
+                                }
+                            )
+
+                    # ── line entities (any layer) ──────────────────────────────
+                    elif obj_upper == "ACDBLINE":
+                        dyn = win32com.client.dynamic.Dispatch(entity)
+                        sp_raw = getattr(dyn, "StartPoint", None)
+                        ep_raw = getattr(dyn, "EndPoint", None)
+                        if sp_raw is not None and ep_raw is not None:
+                            sp = [float(v) for v in sp_raw]
+                            ep = [float(v) for v in ep_raw]
+                            length_raw = getattr(dyn, "Length", None)
+                            line_entities.append(
+                                {
+                                    "handle": handle,
+                                    "layer": str(getattr(entity, "Layer", "")),
+                                    "start_point": sp,
+                                    "end_point": ep,
+                                    "length": float(length_raw)
+                                    if length_raw is not None
+                                    else None,
+                                    # midpoint used for containment test
+                                    "_mid": [
+                                        (sp[0] + ep[0]) / 2,
+                                        (sp[1] + ep[1]) / 2,
+                                    ],
+                                }
+                            )
+
+                except Exception as e:
+                    logger.debug(f"Skipped entity during scan: {e}")
+                    continue
+
+            # ── match texts and lines to each region ──────────────────────────
+            regions = []
+            for pl in closed_polylines:
+                polygon = pl["coords"]
+
+                matched_texts = []
+                for te in text_entities:
+                    ip = te["insertion_point"]
+                    if _point_in_polygon(ip[0], ip[1], polygon):
+                        matched_texts.append(
+                            {
+                                "handle": te["handle"],
+                                "layer": te["layer"],
+                                "text_string": te["text_string"],
+                                "insertion_point": te["insertion_point"],
+                            }
+                        )
+
+                matched_lines = []
+                for le in line_entities:
+                    mid = le["_mid"]
+                    if _point_in_polygon(mid[0], mid[1], polygon):
+                        matched_lines.append(
+                            {
+                                "handle": le["handle"],
+                                "layer": le["layer"],
+                                "start_point": le["start_point"],
+                                "end_point": le["end_point"],
+                                "length": le["length"],
+                            }
+                        )
+
+                regions.append(
+                    {
+                        "handle": pl["handle"],
+                        "object_type": pl["object_type"],
+                        "area": pl["area"],
+                        "texts": matched_texts,
+                        "lines": matched_lines,
+                    }
+                )
+
+            return {
+                "success": True,
+                "layer": layer_name,
+                "total_regions": len(regions),
+                "regions": regions,
+            }
+
+        except Exception as e:
+            logger.error(f"extract_texts_in_closed_polylines failed: {e}")
+            return {"success": False, "layer": layer_name, "error": str(e)}
+
     def set_entity_properties(self, handle: str, properties: Dict[str, Any]) -> bool:
         """Modify one or more properties of a drawing entity via COM.
 

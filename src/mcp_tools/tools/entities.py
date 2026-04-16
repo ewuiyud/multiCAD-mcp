@@ -369,6 +369,80 @@ def register_entity_tools(mcp):
         result = get_current_adapter().query_entity_geometry(handle.strip())
         return json.dumps(result, indent=2)
 
+    @cad_tool(mcp, "extract_texts_in_regions")
+    def extract_texts_in_regions(layer: str) -> str:
+        """
+        Extract all texts located inside closed polyline boundaries on a given layer.
+
+        Scans the specified layer for every closed polyline (LWPOLYLINE / 2D/3D polyline
+        with Closed=True), then tests ALL text / mtext entities in the drawing
+        (regardless of their layer) against each polyline boundary using a ray-casting
+        point-in-polygon algorithm.  Returns the matching texts grouped by region.
+
+        IMPORTANT: Use this tool whenever you need to read table cell text, room labels,
+        or any text whose spatial location matters — especially when the user mentions
+        a specific layer that contains closed boundary rectangles or frames.
+
+        Args:
+            layer: Name of the layer that contains the closed polyline boundaries
+                   (e.g. "GRID", "TABLE_FRAME", "ROOM_BOUNDARY").
+
+        Returns:
+            JSON with:
+              success        (bool)
+              layer          (str)  – echoed input layer
+              total_regions  (int)  – number of closed polylines found
+              regions        (list) – one entry per closed polyline (fully independent groups):
+                  handle         (str)   entity handle of the polyline
+                  object_type    (str)   e.g. "AcDbPolyline"
+                  area           (float | null)
+                  texts          (list)  – texts whose insertion point is inside:
+                      handle           (str)
+                      layer            (str)
+                      text_string      (str)
+                      insertion_point  [x, y, z]
+                  lines          (list)  – LINE segments whose midpoint is inside:
+                      handle           (str)
+                      layer            (str)
+                      start_point      [x, y, z]
+                      end_point        [x, y, z]
+                      length           (float | null)
+
+        Example:
+            extract_texts_in_regions("TABLE_FRAME")
+            → {
+                "success": true,
+                "layer": "TABLE_FRAME",
+                "total_regions": 2,
+                "regions": [
+                  {
+                    "handle": "A1B2",
+                    "object_type": "AcDbPolyline",
+                    "area": 5000.0,
+                    "texts": [
+                      {
+                        "handle": "C3D4",
+                        "layer": "TEXT",
+                        "text_string": "Room 101",
+                        "insertion_point": [45.0, 25.0, 0.0]
+                      }
+                    ],
+                    "lines": [
+                      {
+                        "handle": "E5F6",
+                        "layer": "GRID",
+                        "start_point": [10.0, 0.0, 0.0],
+                        "end_point": [10.0, 50.0, 0.0],
+                        "length": 50.0
+                      }
+                    ]
+                  }
+                ]
+              }
+        """
+        result = get_current_adapter().extract_texts_in_closed_polylines(layer.strip())
+        return json.dumps(result, indent=2)
+
     @cad_tool(mcp, "manage_entities")
     def manage_entities(
         operations: str,
