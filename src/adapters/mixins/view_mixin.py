@@ -112,39 +112,58 @@ class ViewMixin:
         try:
             self._validate_connection()
 
-            # Find the CAD window using strict matching
             hwnd = self._find_cad_window()
 
-            # Bring to front (optional, but good for clean screenshot)
-            # Handle minimized state
-            if win32gui.IsIconic(hwnd):
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-
-            try:
-                win32gui.SetForegroundWindow(hwnd)
-            except Exception as e:
-                logger.warning(f"Could not bring window to front: {e}")
-
-            # Get window bounds
+            # Use PrintWindow to capture without disturbing the foreground window.
+            # This works even when the window is hidden, minimized, or behind other windows.
             rect = win32gui.GetWindowRect(hwnd)
-            x, y, w, h = rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]
-            logger.debug(f"Capturing screenshot for HWND {hwnd} at {x},{y} {w}x{h}")
+            w, h = rect[2] - rect[0], rect[3] - rect[1]
+            logger.debug(f"Capturing via PrintWindow: HWND {hwnd}, {w}x{h}")
 
-            # Capture
-            image = ImageGrab.grab(bbox=(x, y, x + w, y + h), all_screens=True)
+            import ctypes
+            import win32ui
 
-            # Prepare filename and resolve path using centralized utility
+            hdc_win = win32gui.GetWindowDC(hwnd)
+            dc_obj = win32ui.CreateDCFromHandle(hdc_win)
+            mem_dc = dc_obj.CreateCompatibleDC()
+
+            bmp = win32ui.CreateBitmap()
+            bmp.CreateCompatibleBitmap(dc_obj, w, h)
+            mem_dc.SelectObject(bmp)
+
+            # PW_RENDERFULLCONTENT (2) captures composited/DPI-aware content
+            result = ctypes.windll.user32.PrintWindow(hwnd, mem_dc.GetSafeHdc(), 2)
+            if not result:
+                # Fallback to legacy PrintWindow without flags
+                ctypes.windll.user32.PrintWindow(hwnd, mem_dc.GetSafeHdc(), 0)
+
+            bmp_info = bmp.GetInfo()
+            bmp_bits = bmp.GetBitmapBits(True)
+
+            from PIL import Image
+            image = Image.frombuffer(
+                "RGB",
+                (bmp_info["bmWidth"], bmp_info["bmHeight"]),
+                bmp_bits,
+                "raw",
+                "BGRX",
+                0,
+                1,
+            )
+
+            mem_dc.DeleteDC()
+            dc_obj.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hdc_win)
+            win32gui.DeleteObject(bmp.GetHandle())
+
             filename = f"cad_screenshot_{os.getpid()}.png"
             filepath = self.resolve_export_path(filename, "images")
-
             image.save(filepath, "PNG")
 
-            # Convert to base64
             with open(filepath, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
 
             logger.info(f"Screenshot saved to {filepath}")
-
             return {"path": filepath, "data": encoded_string}
 
         except Exception as e:
