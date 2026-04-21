@@ -401,12 +401,20 @@ def register_entity_tools(mcp):
                       layer            (str)
                       text_string      (str)
                       insertion_point  [x, y, z]
-                  lines          (list)  – LINE segments whose midpoint is inside:
+                  lines          (list)  – LINE / POLYLINE segments whose centroid
+                                           is inside (polylines with >2 vertices
+                                           include a "vertices" field):
                       handle           (str)
                       layer            (str)
                       start_point      [x, y, z]
                       end_point        [x, y, z]
+                      vertices         [[x,y,z],...] (only for multi-segment polylines)
                       length           (float | null)
+                  table_parse    (dict) – auto-parsed table (best-effort):
+                      success          (bool)
+                      rows             [[str,...],...]  2-D cell array, top→bottom
+                      n_rows / n_cols  (int)
+                      unmatched_texts  (list[str]) texts outside detected grid
 
         Example:
             extract_texts_in_regions("TABLE_FRAME")

@@ -182,11 +182,13 @@ class EntityMixin:
         """Find all closed polylines on a layer and extract texts and lines within each boundary.
 
         For each closed polyline found on ``layer_name``, performs a point-in-polygon
-        test (ray-casting) against every TEXT/MTEXT and LINE entity in ModelSpace
-        (regardless of layer) and returns results grouped by polyline region.
+        test (ray-casting) against every TEXT/MTEXT, LINE, and POLYLINE entity in
+        ModelSpace (regardless of layer) and returns results grouped by region.
 
-        Line membership is decided by midpoint: a line belongs to a region when its
-        midpoint lies inside the closed boundary.
+        Line membership is decided by centroid: a segment belongs to a region when its
+        midpoint (for LINE) or vertex centroid (for POLYLINE) lies inside the boundary.
+
+        Also attempts automatic table parsing from the grid lines and texts.
 
         Args:
             layer_name: Name of the layer to scan for closed polylines.
@@ -201,8 +203,15 @@ class EntityMixin:
                   object_type (str)
                   area (float | None)
                   texts (list) – texts whose insertion point is inside
-                  lines (list) – line segments whose midpoint is inside
+                  lines (list) – LINE / POLYLINE segments whose centroid is inside;
+                      polylines with >2 vertices include a "vertices" field
+                  table_parse (dict) – auto-parsed table structure:
+                      success (bool)
+                      rows (list[list[str]]) – 2-D cell array, top-to-bottom
+                      n_rows / n_cols (int)
+                      unmatched_texts (list[str]) – texts outside the detected grid
         """
+        import math
         import win32com.client
 
         def _point_in_polygon(px: float, py: float, polygon: List[List[float]]) -> bool:
@@ -223,6 +232,222 @@ class EntityMixin:
                 j = i
             return inside
 
+        def _cluster(values: List[float], tol: float) -> List[float]:
+            """Group close float values and return cluster centres (sorted ascending)."""
+            if not values:
+                return []
+            sorted_v = sorted(values)
+            clusters: List[List[float]] = [[sorted_v[0]]]
+            for v in sorted_v[1:]:
+                if v - clusters[-1][-1] <= tol:
+                    clusters[-1].append(v)
+                else:
+                    clusters.append([v])
+            return [sum(c) / len(c) for c in clusters]
+
+        def _try_parse_table(
+            texts: List[Dict[str, Any]], lines: List[Dict[str, Any]]
+        ) -> Dict[str, Any]:
+            """Attempt to derive a 2-D table from coordinate data.
+
+            Decomposes every line/polyline into individual segments, classifies them
+            as horizontal or vertical within a 10-degree tolerance, clusters the
+            resulting row/column boundaries, and maps texts to cells.
+            """
+            if not texts:
+                return {"success": False, "reason": "no texts in region"}
+
+            # --- collect individual H/V segments ----------------------------
+            h_segs: List[tuple] = []  # (y, x_min, x_max)
+            v_segs: List[tuple] = []  # (x, y_min, y_max)
+
+            def _classify_seg(p1: List[float], p2: List[float]) -> None:
+                dx = p2[0] - p1[0]
+                dy = p2[1] - p1[1]
+                length = math.hypot(dx, dy)
+                if length < 1e-6:
+                    return
+                angle = abs(math.degrees(math.atan2(abs(dy), abs(dx))))
+                if angle <= 10:  # horizontal (within 10°)
+                    y = (p1[1] + p2[1]) / 2
+                    h_segs.append((y, min(p1[0], p2[0]), max(p1[0], p2[0])))
+                elif angle >= 80:  # vertical (within 10°)
+                    x = (p1[0] + p2[0]) / 2
+                    v_segs.append((x, min(p1[1], p2[1]), max(p1[1], p2[1])))
+
+            for line in lines:
+                verts = line.get("vertices")
+                if verts and len(verts) >= 2:
+                    for i in range(len(verts) - 1):
+                        _classify_seg(verts[i], verts[i + 1])
+                else:
+                    _classify_seg(line["start_point"], line["end_point"])
+
+            if not h_segs or not v_segs:
+                # ── fallback: infer grid from text-position gaps ───────────
+                # When grid lines are absent (borders on a hidden/different layer),
+                # use natural coordinate gaps between text entities to infer
+                # row/column boundaries.  We look for unusually large jumps
+                # between consecutive sorted X or Y values: threshold = Q1 * 5.
+                def _gap_boundaries(sorted_vals: List[float],
+                                    abs_min: float = 30.0) -> List[float]:
+                    """Find column/row split points using bimodal gap detection.
+
+                    CAD table text positions have two gap populations:
+                    - Small gaps (within one cell, split text entities)
+                    - Large gaps (between distinct columns/rows)
+
+                    We find the largest "jump" between consecutive sorted gap
+                    sizes; that inflection point separates the two populations.
+                    When gaps are roughly uniform (ratio < 4), every gap is a
+                    boundary (no split-text cells present).
+                    """
+                    if len(sorted_vals) < 2:
+                        return []
+                    diffs = [sorted_vals[i + 1] - sorted_vals[i]
+                             for i in range(len(sorted_vals) - 1)]
+                    min_d = min(diffs)
+                    max_d = max(diffs)
+
+                    # Uniform spacing → every gap is a column/row boundary
+                    if max_d / (min_d + 1e-6) < 4.0:
+                        return [
+                            (sorted_vals[i] + sorted_vals[i + 1]) / 2
+                            for i in range(len(sorted_vals) - 1)
+                        ]
+
+                    # Bimodal: find the largest jump between consecutive
+                    # sorted diff values — that separates within-cell gaps
+                    # from between-column gaps.
+                    sd = sorted(diffs)
+                    jump_sizes = [sd[i + 1] - sd[i] for i in range(len(sd) - 1)]
+                    split_idx = max(range(len(jump_sizes)),
+                                    key=lambda i: jump_sizes[i])
+                    threshold = max(
+                        (sd[split_idx] + sd[split_idx + 1]) / 2,
+                        min_d * 2,
+                        abs_min,
+                    )
+                    return [
+                        (sorted_vals[i] + sorted_vals[i + 1]) / 2
+                        for i, d in enumerate(diffs) if d >= threshold
+                    ]
+
+                uniq_y = sorted(set(round(t["insertion_point"][1], 1) for t in texts))
+                uniq_x = sorted(set(round(t["insertion_point"][0], 1) for t in texts))
+
+                y_breaks = _gap_boundaries(uniq_y)
+                x_breaks = _gap_boundaries(uniq_x)
+
+                if not y_breaks and not x_breaks and len(uniq_y) < 2:
+                    return {
+                        "success": False,
+                        "reason": "insufficient axis-aligned grid lines "
+                        f"(h={len(h_segs)}, v={len(v_segs)}) and too few "
+                        "text positions for gap inference",
+                    }
+
+                def _bucket(val: float, breaks: List[float],
+                            descending: bool = False) -> int:
+                    idx = sum(1 for b in breaks if val > b)
+                    return (len(breaks) - idx) if descending else idx
+
+                n_rows_fb = len(y_breaks) + 1
+                n_cols_fb = len(x_breaks) + 1
+
+                grid_fb: List[List[List]] = [
+                    [[] for _ in range(n_cols_fb)] for _ in range(n_rows_fb)
+                ]
+                for t in texts:
+                    tx, ty = t["insertion_point"][0], t["insertion_point"][1]
+                    r = _bucket(ty, y_breaks, descending=True)
+                    c = _bucket(tx, x_breaks, descending=False)
+                    r = max(0, min(r, n_rows_fb - 1))
+                    c = max(0, min(c, n_cols_fb - 1))
+                    # store (x, text) so we can sort by X before joining
+                    grid_fb[r][c].append((tx, t["text_string"]))
+
+                # Join texts within same cell sorted by X position.
+                # No separator: CAD often splits one logical string ("FM丙0620")
+                # into adjacent text entities — concatenation restores it.
+                rows_fb = [
+                    ["".join(s for _, s in sorted(cell)) for cell in row]
+                    for row in grid_fb
+                ]
+
+                return {
+                    "success": True,
+                    "n_rows": n_rows_fb,
+                    "n_cols": n_cols_fb,
+                    "rows": rows_fb,
+                    "unmatched_texts": [],
+                    "note": "grid inferred from text-position gaps (no grid lines found)",
+                }
+
+            # --- auto tolerance: 1% of smaller table dimension --------------
+            all_y = [y for y, _, _ in h_segs]
+            all_x = [x for x, _, _ in v_segs]
+            y_span = max(all_y) - min(all_y) if len(all_y) > 1 else 1.0
+            x_span = max(all_x) - min(all_x) if len(all_x) > 1 else 1.0
+            tol = max(2.0, min(y_span, x_span) * 0.01)
+
+            row_ys = _cluster(all_y, tol)   # ascending
+            col_xs = _cluster(all_x, tol)   # ascending
+
+            if len(row_ys) < 2 or len(col_xs) < 2:
+                return {
+                    "success": False,
+                    "reason": f"grid too sparse: {len(row_ys)} h-lines, "
+                    f"{len(col_xs)} v-lines after clustering",
+                }
+
+            # CAD Y increases upward → top row = highest Y
+            row_ys_desc = sorted(row_ys, reverse=True)
+            n_rows = len(row_ys_desc) - 1
+            n_cols = len(col_xs) - 1
+
+            # --- assign texts to cells --------------------------------------
+            grid: List[List[List[str]]] = [
+                [[] for _ in range(n_cols)] for _ in range(n_rows)
+            ]
+            unmatched: List[str] = []
+
+            for t in texts:
+                ip = t["insertion_point"]
+                tx, ty = ip[0], ip[1]
+
+                r_idx = next(
+                    (
+                        r
+                        for r in range(n_rows)
+                        if row_ys_desc[r + 1] - tol <= ty <= row_ys_desc[r] + tol
+                    ),
+                    None,
+                )
+                c_idx = next(
+                    (
+                        c
+                        for c in range(n_cols)
+                        if col_xs[c] - tol <= tx <= col_xs[c + 1] + tol
+                    ),
+                    None,
+                )
+
+                if r_idx is not None and c_idx is not None:
+                    grid[r_idx][c_idx].append(t["text_string"])
+                else:
+                    unmatched.append(t["text_string"])
+
+            rows = [[" ".join(cell) for cell in row] for row in grid]
+
+            return {
+                "success": True,
+                "n_rows": n_rows,
+                "n_cols": n_cols,
+                "rows": rows,
+                "unmatched_texts": unmatched,
+            }
+
         try:
             document = self._get_document("extract_texts_in_closed_polylines")
             target_layer = layer_name.strip().lower()
@@ -238,29 +463,52 @@ class EntityMixin:
                     handle = str(entity.Handle)
                     obj_upper = obj_name.upper()
 
-                    # ── closed polylines on target layer ──────────────────────
-                    if "POLY" in obj_upper and entity_layer == target_layer:
+                    # ── all polyline types ─────────────────────────────────────
+                    if "POLY" in obj_upper:
                         dyn = win32com.client.dynamic.Dispatch(entity)
-                        if getattr(dyn, "Closed", False):
-                            coords_raw = getattr(dyn, "Coordinates", None)
-                            if coords_raw is not None:
-                                flat = [float(v) for v in coords_raw]
-                                stride = 3 if "3D" in obj_upper else 2
-                                coords = [
-                                    flat[i : i + stride]
-                                    for i in range(0, len(flat), stride)
-                                ]
-                                area_raw = getattr(dyn, "Area", None)
-                                closed_polylines.append(
-                                    {
-                                        "handle": handle,
-                                        "object_type": obj_name,
-                                        "coords": coords,
-                                        "area": float(area_raw)
-                                        if area_raw is not None
-                                        else None,
-                                    }
-                                )
+                        is_closed = bool(getattr(dyn, "Closed", False))
+                        coords_raw = getattr(dyn, "Coordinates", None)
+                        if coords_raw is None:
+                            continue
+                        flat = [float(v) for v in coords_raw]
+                        stride = 3 if "3D" in obj_upper else 2
+                        verts = [
+                            flat[i : i + stride]
+                            for i in range(0, len(flat), stride)
+                        ]
+
+                        if is_closed and entity_layer == target_layer:
+                            # closed boundary on target layer → region
+                            area_raw = getattr(dyn, "Area", None)
+                            closed_polylines.append(
+                                {
+                                    "handle": handle,
+                                    "object_type": obj_name,
+                                    "coords": verts,
+                                    "area": float(area_raw)
+                                    if area_raw is not None
+                                    else None,
+                                }
+                            )
+                        elif len(verts) >= 2:
+                            # non-closed polyline (any layer) OR closed on other layer
+                            # → treat as grid / divider lines
+                            cx = sum(v[0] for v in verts) / len(verts)
+                            cy = sum(v[1] for v in verts) / len(verts)
+                            length_raw = getattr(dyn, "Length", None)
+                            entry: Dict[str, Any] = {
+                                "handle": handle,
+                                "layer": str(getattr(entity, "Layer", "")),
+                                "start_point": verts[0],
+                                "end_point": verts[-1],
+                                "length": float(length_raw)
+                                if length_raw is not None
+                                else None,
+                                "_mid": [cx, cy],
+                            }
+                            if len(verts) > 2:
+                                entry["vertices"] = verts
+                            line_entities.append(entry)
 
                     # ── text / mtext entities (any layer) ─────────────────────
                     elif "TEXT" in obj_upper:
@@ -282,7 +530,7 @@ class EntityMixin:
                                 }
                             )
 
-                    # ── line entities (any layer) ──────────────────────────────
+                    # ── single LINE entities (any layer) ──────────────────────
                     elif obj_upper == "ACDBLINE":
                         dyn = win32com.client.dynamic.Dispatch(entity)
                         sp_raw = getattr(dyn, "StartPoint", None)
@@ -300,7 +548,6 @@ class EntityMixin:
                                     "length": float(length_raw)
                                     if length_raw is not None
                                     else None,
-                                    # midpoint used for containment test
                                     "_mid": [
                                         (sp[0] + ep[0]) / 2,
                                         (sp[1] + ep[1]) / 2,
@@ -334,15 +581,18 @@ class EntityMixin:
                 for le in line_entities:
                     mid = le["_mid"]
                     if _point_in_polygon(mid[0], mid[1], polygon):
-                        matched_lines.append(
-                            {
-                                "handle": le["handle"],
-                                "layer": le["layer"],
-                                "start_point": le["start_point"],
-                                "end_point": le["end_point"],
-                                "length": le["length"],
-                            }
-                        )
+                        entry = {
+                            "handle": le["handle"],
+                            "layer": le["layer"],
+                            "start_point": le["start_point"],
+                            "end_point": le["end_point"],
+                            "length": le["length"],
+                        }
+                        if "vertices" in le:
+                            entry["vertices"] = le["vertices"]
+                        matched_lines.append(entry)
+
+                table_parse = _try_parse_table(matched_texts, matched_lines)
 
                 regions.append(
                     {
@@ -351,6 +601,7 @@ class EntityMixin:
                         "area": pl["area"],
                         "texts": matched_texts,
                         "lines": matched_lines,
+                        "table_parse": table_parse,
                     }
                 )
 
