@@ -57,46 +57,67 @@ class ViewMixin:
         return user_input
 
     def _find_cad_window(self) -> int:
-        """Find CAD application window with strict matching.
+        """Find CAD application window.
 
-        Uses both window title and class name matching to avoid VBA and other windows.
-        Returns the handle of the main CAD window.
+        Collects all top-level windows whose title contains the CAD search
+        term.  Prefers windows whose class name matches a known CAD frame
+        class, but falls back to title-only matching when the class list
+        does not cover the installed CAD version (e.g. AutoCAD 2020+ uses
+        Afx:… class names).  Among all candidates the window with the
+        largest area is chosen to avoid selecting dialogs or sub-windows.
 
         Returns:
-            int: Window handle (HWND) of the CAD application, 0 if not found
+            int: Window handle (HWND) of the main CAD window.
 
         Raises:
-            Exception: If CAD window cannot be found
+            Exception: If no matching window is found.
         """
         from mcp_tools.constants import CAD_WINDOW_SEARCH_TERMS, AUTOCAD_WINDOW_CLASSES
 
-        search_term = CAD_WINDOW_SEARCH_TERMS.get(self.cad_type, "")
-        hwnd = 0
+        search_term = CAD_WINDOW_SEARCH_TERMS.get(self.cad_type, "").lower()
 
-        def enum_windows_callback(h, result):
-            nonlocal hwnd
-            if hwnd or not win32gui.IsWindowVisible(h):
+        strict: list  = []  # title + known class
+        loose:  list  = []  # title only (fallback)
+
+        def enum_windows_callback(h, _):
+            title = win32gui.GetWindowText(h)
+            if not title or search_term not in title.lower():
+                return
+            if "VBA" in title:
                 return
 
-            title = win32gui.GetWindowText(h)
             class_name = win32gui.GetClassName(h)
+            # For minimized windows GetWindowRect returns a tiny stub rect;
+            # treat them as large so they are not excluded.
+            if win32gui.IsIconic(h):
+                area = 10 ** 9
+            else:
+                rect = win32gui.GetWindowRect(h)
+                area = max(0, rect[2] - rect[0]) * max(0, rect[3] - rect[1])
+            if area < 100:            # skip genuinely tiny dialogs / tooltips
+                return
 
-            # Matching: title contains search term AND class is a CAD window class
-            title_match = search_term.lower() in title.lower()
-            class_match = any(p in class_name for p in AUTOCAD_WINDOW_CLASSES)
+            if any(p in class_name for p in AUTOCAD_WINDOW_CLASSES):
+                strict.append((area, h))
+            else:
+                loose.append((area, h))
 
-            # Exclude VBA editor and other non-main windows
-            if title_match and class_match and "VBA" not in title:
-                hwnd = h
-                logger.debug(
-                    f"Found CAD window: title='{title}', class='{class_name}', hwnd={h}"
-                )
+            logger.debug(
+                f"CAD candidate: title='{title}', class='{class_name}', "
+                f"hwnd={h}, area={area}"
+            )
 
         win32gui.EnumWindows(enum_windows_callback, None)
 
-        if not hwnd:
-            raise Exception(f"Could not find window for {self.cad_type}")
+        candidates = strict or loose
+        if not candidates:
+            raise Exception(
+                f"Could not find window for {self.cad_type} "
+                f"(search term: '{search_term}')"
+            )
 
+        _, hwnd = max(candidates)   # pick largest window
+        logger.debug(f"Selected CAD window hwnd={hwnd}")
         return hwnd
 
     def get_screenshot(self) -> Dict[str, str]:
@@ -114,8 +135,18 @@ class ViewMixin:
 
             hwnd = self._find_cad_window()
 
-            # Use PrintWindow to capture without disturbing the foreground window.
-            # This works even when the window is hidden, minimized, or behind other windows.
+            import ctypes
+            import win32ui
+            import time
+
+            # If the window is minimized, restore it without activating
+            # (SW_SHOWNOACTIVATE = 4) so PrintWindow gets a full render.
+            # We put it back to minimized afterwards.
+            was_minimized = win32gui.IsIconic(hwnd)
+            if was_minimized:
+                win32gui.ShowWindow(hwnd, win32con.SW_SHOWNOACTIVATE)
+                time.sleep(0.3)   # give the compositor time to render
+
             rect = win32gui.GetWindowRect(hwnd)
             w, h = rect[2] - rect[0], rect[3] - rect[1]
             logger.debug(f"Capturing via PrintWindow: HWND {hwnd}, {w}x{h}")
@@ -155,6 +186,10 @@ class ViewMixin:
             dc_obj.DeleteDC()
             win32gui.ReleaseDC(hwnd, hdc_win)
             win32gui.DeleteObject(bmp.GetHandle())
+
+            # Restore minimized state if we changed it
+            if was_minimized:
+                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
             filename = f"cad_screenshot_{os.getpid()}.png"
             filepath = self.resolve_export_path(filename, "images")
